@@ -1,303 +1,269 @@
-// missions.js — the story of Solmar Bay. Jax Marlowe, a getaway driver trying to
-// go straight, takes jobs for Iris Delgado, a fixer with a long memory. Six jobs,
-// each a chain of small steps (go somewhere, fetch something, survive, escape),
-// plus taxi fares and hidden cash as side work. Every step is data, so the same
-// engine runs the story, the screenshots and the self-test.
-import { dist } from './util.js';
+// The story: five jobs for Vera Kosta's Marlin Crew, from stealing a coupe
+// at the marina to the Kosta Score. A small state machine per mission with
+// a glowing ground marker, dialogue through the feed, and cash on completion.
+import { CFG } from './config.js';
+import { setWanted } from './police.js';
+import { spawnThugs, clearEnemies } from './combat.js';
+import { saveGame } from './save.js';
 
-const L = (x, y) => ({ x, y });
-
-export const MISSIONS = [
+const MISSIONS = [
   {
-    id: 'm1', title: 'First Pickup', reward: 150,
-    intro: [
-      ['IRIS', 'Jax. You still owe me for the Marina job. One pickup and we are square.'],
-      ['JAX', 'One pickup. Then I am done driving for you, Iris.'],
-      ['IRIS', 'Sure you are. I am at the Safehouse. Get a car, come get me, take me to the Neon Palms Club.'],
-    ],
-    outro: [['IRIS', 'Smooth. Maybe you are not as rusty as you look. I will call you.']],
-    steps: [
-      { kind: 'getCar', label: 'Get a car (press E near one)' },
-      { kind: 'goto', at: L(1180, 1990), r: 70, label: 'Pick up Iris at the Safehouse' },
-      { kind: 'goto', at: L(1180, 920), r: 70, label: 'Drive Iris to the Neon Palms Club', needCar: true },
-    ],
+    title: '1 — Hot Wheels',
+    intro: 'Vera: "First job, Rico. A red coupe is parked by the marina. Bring it to the Anchor."',
+    objective: 'Steal the red coupe at the marina',
   },
   {
-    id: 'm2', title: 'The Drop', reward: 300,
-    intro: [
-      ['IRIS', 'A package is waiting at the Harbour Warehouse. No questions, no opening it.'],
-      ['JAX', 'And the other end?'],
-      ['IRIS', 'Marina Penthouse. Two minutes, Jax. The buyer does not wait.'],
-    ],
-    outro: [['IRIS', 'Delivered clean. Here is something for the trouble — a pistol. You will need it.']],
-    steps: [
-      { kind: 'goto', at: L(2050, 2150), r: 60, label: 'Collect the package at the Harbour Warehouse' },
-      { kind: 'deliver', at: L(2220, 400), r: 60, time: 120, label: 'Deliver to the Marina Penthouse' },
-    ],
-    onComplete: (G) => { G.player.hasPistol = true; },
+    title: '2 — Sunset Courier',
+    intro: 'Vera: "Packages. Three drops along the beach road. Fast — the buyers hate waiting."',
+    objective: 'Deliver to all 3 checkpoints before time runs out',
   },
   {
-    id: 'm3', title: 'Hot Wheels', reward: 450,
-    intro: [
-      ['IRIS', 'A Comet GT is parked outside the Marina Penthouse. Red. Fast. Not theirs for long.'],
-      ['JAX', 'Stealing a sports car in broad daylight. Great.'],
-      ['IRIS', 'Bring it to the Chop Shop in the Industrial quarter. The cops will notice — drive like it.'],
-    ],
-    outro: [['IRIS', 'The Comet is ours. The Chop Shop paid well. You drive like you mean it, Jax.']],
-    steps: [
-      { kind: 'enterCarType', type: 'sports', at: L(2220, 400), r: 60, label: 'Steal the Comet GT at the Marina' },
-      { kind: 'goto', at: L(920, 1700), r: 70, label: 'Deliver the Comet to the Chop Shop', needCar: true, wanted: 2 },
-    ],
+    title: '3 — Dockside Trouble',
+    intro: 'Vera: "Some dock rats skimmed my cut. Go to the harbour and remind them who runs it."',
+    objective: 'Go to the harbour and defeat the 3 thugs',
   },
   {
-    id: 'm4', title: 'Bank Run', reward: 800,
-    intro: [
-      ['IRIS', 'The crew hits Solmar Central Bank at noon. You are the wheelman — and the muscle.'],
-      ['JAX', 'I said no more bank jobs.'],
-      ['IRIS', 'You said that last time too. Get the crew to the bank, hold the street, then run.'],
-    ],
-    outro: [['IRIS', 'The crew is clear and the money is split. You are officially back in the game, Jax.']],
-    steps: [
-      { kind: 'getCar', label: 'Get a getaway car' },
-      { kind: 'goto', at: L(1440, 1180), r: 70, label: 'Take the crew to Solmar Central Bank', needCar: true },
-      { kind: 'survive', time: 45, label: 'Hold the street — survive the police response!', wanted: 3, waves: true },
-      { kind: 'goto', at: L(1180, 1990), r: 80, label: 'Lose the heat — escape to the Safehouse' },
-    ],
+    title: '4 — Heat on the Strip',
+    intro: 'Vera: "The cops got tipped off. Lose them and get to the safehouse on the beach road."',
+    objective: 'Reach the safehouse while the police chase you',
   },
   {
-    id: 'm5', title: 'Harbour Ambush', reward: 1000,
-    intro: [
-      ['IRIS', 'The Vipers set a trap for me at the Docks. Six of them, armed. I need my driver to be my gun.'],
-      ['JAX', 'Six armed men. You really know how to pick friends.'],
-      ['IRIS', 'End them, Jax. Then get me out of there.'],
-    ],
-    outro: [['IRIS', 'The Vipers will think twice now. You fight like a cornered animal, Jax. I like it.']],
-    steps: [
-      { kind: 'goto', at: L(2220, 2220), r: 70, label: 'Reach the Docks' },
-      { kind: 'kill', count: 6, kind2: 'armed', label: 'Take out the 6 Vipers at the Docks', spawnArmed: 6 },
-      { kind: 'goto', at: L(1180, 1990), r: 80, label: 'Drive Iris back to the Safehouse' },
-    ],
-  },
-  {
-    id: 'm6', title: 'The Big Score', reward: 5000,
-    intro: [
-      ['IRIS', 'Last job, Jax. A Vault Hauler sits in the Police Impound Lot. We take it, we crack the bank vault, we vanish.'],
-      ['JAX', 'Stealing from the police to rob a bank. If this goes wrong, I am done.'],
-      ['IRIS', 'It will not go wrong. You are the best wheelman in Solmar Bay. Prove it.'],
-    ],
-    outro: [
-      ['IRIS', 'Five thousand. Clean. The vault, the van, the whole city — ours.'],
-      ['JAX', 'Then I am done, Iris. For real this time. Solmar Bay is mine now.'],
-    ],
-    steps: [
-      { kind: 'enterCarType', type: 'armored', at: L(1560, 860), r: 70, label: 'Steal the Vault Hauler from the Impound Lot' },
-      { kind: 'goto', at: L(1440, 1180), r: 70, label: 'Drive the Hauler to Solmar Central Bank', needCar: true, wanted: 3 },
-      { kind: 'wait', time: 20, at: L(1440, 1180), r: 90, label: 'Hold position while the vault is cracked', wanted: 4 },
-      { kind: 'goto', at: L(1180, 1990), r: 80, label: 'Escape to the Safehouse — lose the heat!', wanted: 5 },
-    ],
+    title: '5 — The Kosta Score',
+    intro: 'Vera: "Last one. A gold sedan outside the casino. Bring it to the Anchor and we are square."',
+    objective: 'Steal the gold sedan at the casino and bring it home',
   },
 ];
 
-export class MissionManager {
-  constructor(G) {
-    this.G = G;
-    this.active = null; // { def, stepIdx, stepState }
-    this.offered = null; // mission def waiting for the player to accept
-    this.dialogue = null; // { speaker, lines, i, onDone }
-    this.killCount = 0;
-    this.waveT = 0;
+export function createMissions(scene) {
+  // Ground marker: glowing ring + light beam at the current target.
+  const ring = new THREE.Mesh(
+    new THREE.CylinderGeometry(3.2, 3.2, 0.25, 24),
+    new THREE.MeshBasicMaterial({ color: 0xffd23e, transparent: true, opacity: 0.75 }),
+  );
+  ring.position.y = 0.15;
+  ring.visible = false;
+  scene.add(ring);
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.55, 0.55, 34, 10, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffd23e, transparent: true, opacity: 0.28, side: THREE.DoubleSide }),
+  );
+  beam.position.y = 17;
+  beam.visible = false;
+  scene.add(beam);
+  return {
+    index: 0,
+    stage: 'steal',
+    completed: [false, false, false, false, false],
+    timer: 0,
+    checkpoint: 0,
+    target: null,
+    ring,
+    beam,
+    won: false,
+  };
+}
+
+export function setMarker(G, x, z) {
+  G.missions.target = { x, z };
+  G.missions.ring.position.set(x, 0.15, z);
+  G.missions.beam.position.set(x, 17, z);
+  G.missions.ring.visible = true;
+  G.missions.beam.visible = true;
+}
+
+export function hideMarker(G) {
+  G.missions.target = null;
+  G.missions.ring.visible = false;
+  G.missions.beam.visible = false;
+}
+
+export function missionTitle(G) {
+  return MISSIONS[Math.min(G.missions.index, MISSIONS.length - 1)].title;
+}
+
+export function missionObjectiveText(G) {
+  const m = G.missions;
+  switch (m.index) {
+    case 0:
+      return m.stage === 'steal'
+        ? 'Steal the red coupe at the marina (E near the car)'
+        : 'Drive the coupe back to the Anchor hideout';
+    case 1:
+      return `Courier drop ${m.checkpoint + 1} of 3 — ${Math.max(0, Math.ceil(m.timer))}s left`;
+    case 2:
+      return m.stage === 'goto'
+        ? 'Go to the harbour docks'
+        : `Defeat the thugs (${3 - aliveThugs(G)} of 3 down)`;
+    case 3:
+      return 'Reach the safehouse on the beach road — lose the police';
+    case 4:
+      return m.stage === 'steal'
+        ? 'Steal the gold sedan outside the casino'
+        : 'Bring the gold sedan to the Anchor — the police are on you';
+    default:
+      return 'Solmar Bay is yours.';
   }
+}
 
-  nextMission() {
-    const done = this.G.save.missionsDone || [];
-    return MISSIONS.find((m) => !done.includes(m.id)) || null;
+function aliveThugs(G) {
+  return G.combat.enemies.filter((e) => !e.dead).length;
+}
+
+function startMission(G, i) {
+  const m = G.missions;
+  m.index = i;
+  m.timer = 0;
+  m.checkpoint = 0;
+  clearEnemies(G);
+  const def = MISSIONS[i];
+  G.hud.feed(def.intro);
+  G.hud.setObjective(def.title, missionObjectiveText(G));
+  if (i === 0) {
+    m.stage = 'steal';
+    setMarker(G, CFG.marinaCoupe.x, CFG.marinaCoupe.z);
+  } else if (i === 1) {
+    m.stage = 'go';
+    m.timer = CFG.courierTimeLimit;
+    setMarker(G, CFG.courierPoints[0].x, CFG.courierPoints[0].z);
+  } else if (i === 2) {
+    m.stage = 'goto';
+    setMarker(G, CFG.harbour.x, CFG.harbour.z);
+  } else if (i === 3) {
+    m.stage = 'escape';
+    setWanted(G, 3);
+    setMarker(G, CFG.safehouse.x, CFG.safehouse.z);
+    G.hud.feed('Wanted level 3! The police are closing in.');
+  } else if (i === 4) {
+    m.stage = 'steal';
+    setMarker(G, CFG.casinoSedan.x, CFG.casinoSedan.z);
   }
+}
 
-  offerNext() {
-    const next = this.nextMission();
-    if (next && !this.active && !this.offered) {
-      this.offered = next;
-      this.G.audio.phone();
-    }
+function completeMission(G) {
+  const m = G.missions;
+  const reward = CFG.missionRewards[m.index];
+  G.cash += reward;
+  m.completed[m.index] = true;
+  G.audio.chime();
+  G.hud.feed(`Mission complete! Vera paid you $${reward}.`);
+  hideMarker(G);
+  clearEnemies(G);
+  saveGame(G);
+  if (m.index >= MISSIONS.length - 1) {
+    m.won = true;
+    G.showWin();
+    return;
   }
+  startMission(G, m.index + 1);
+}
 
-  startMission(def) {
-    this.offered = null;
-    this.active = { def, stepIdx: 0, state: {} };
-    this.killCount = 0;
-    this.showDialogue(def.intro, () => this.beginStep());
-    this.G.log('Mission started: ' + def.title);
+function near(G, x, z, r) {
+  return Math.hypot(G.player.pos.x - x, G.player.pos.z - z) < r;
+}
+
+export function resetMissionToStart(G) {
+  startMission(G, G.missions.index);
+}
+
+export function updateMissions(G, dt) {
+  const m = G.missions;
+  if (m.won) return;
+  // Animate the marker.
+  if (m.ring.visible) {
+    m.ring.rotation.y += dt;
+    const s = 1 + Math.sin(performance.now() * 0.004) * 0.08;
+    m.ring.scale.set(s, 1, s);
   }
-
-  showDialogue(lines, onDone) {
-    this.dialogue = { lines, i: 0, onDone };
-  }
-
-  advanceDialogue() {
-    if (!this.dialogue) return;
-    this.dialogue.i++;
-    if (this.dialogue.i >= this.dialogue.lines.length) {
-      const cb = this.dialogue.onDone;
-      this.dialogue = null;
-      if (cb) cb();
-    }
-  }
-
-  beginStep() {
-    const m = this.active;
-    if (!m) return;
-    const step = m.def.steps[m.stepIdx];
-    m.state = { t: 0, done: false };
-    if (step.wanted !== undefined) {
-      this.G.player.wanted = Math.max(this.G.player.wanted, step.wanted);
-      this.G.player.wantedT = 0;
-      this.G.police.maintain(this.G.player.wanted, this.G.player.x, this.G.player.y);
-    }
-    if (step.spawnArmed) {
-      for (let i = 0; i < step.spawnArmed; i++) {
-        const a = (i / step.spawnArmed) * Math.PI * 2;
-        const ped = this.G.peds.spawn(step.at.x + Math.cos(a) * 120, step.at.y + Math.sin(a) * 120, { armed: true });
-        ped.shirt = '#8a2f3f'; ped.pants = '#222';
-      }
-    }
-    if (step.kind === 'enterCarType') {
-      this.G.spawnMissionCar(step.type, step.at.x, step.at.y);
-    }
-    this.waveT = 0;
-  }
-
-  currentStep() {
-    return this.active ? this.active.def.steps[this.active.stepIdx] : null;
-  }
-
-  currentObjective() {
-    if (this.dialogue) return '…';
-    const step = this.currentStep();
-    if (step) return step.label;
-    if (this.offered) return 'New job from Iris — press ENTER';
-    if (!this.nextMission()) return 'All jobs done — King of Solmar Bay!';
-    return 'Free roam — Iris will call with work';
-  }
-
-  stepTarget() {
-    const step = this.currentStep();
-    if (!step || !step.at) return null;
-    return step.at;
-  }
-
-  update(dt) {
-    if (this.dialogue) return; // game is paused for dialogue
-    const m = this.active;
-    if (!m) return;
-    const step = m.def.steps[m.stepIdx];
-    const p = this.G.player;
-    m.state.t += dt;
-
-    // Police waves during survive steps.
-    if (step.waves) {
-      this.waveT += dt;
-      if (this.waveT > 6) {
-        this.waveT = 0;
-        for (let i = 0; i < 2; i++) {
-          const a = Math.random() * Math.PI * 2;
-          const cop = this.G.peds.spawn(p.x + Math.cos(a) * 420, p.y + Math.sin(a) * 420, { isCop: true });
-          cop.shirt = '#24344d'; cop.pants = '#1a2436';
+  switch (m.index) {
+    case 0: {
+      if (m.stage === 'steal') {
+        const coupe = G.parkedCars.find((c) => c.missionCar === 'coupe');
+        if (G.player.inCar && G.player.car === coupe) {
+          m.stage = 'deliver';
+          setMarker(G, CFG.hideout.x, CFG.hideout.z);
+          G.hud.feed('You stole the coupe! Get it to the Anchor — and mind the cops.');
         }
+      } else if (G.player.inCar && near(G, CFG.hideout.x, CFG.hideout.z, 8)) {
+        completeMission(G);
       }
+      break;
     }
-
-    let done = false;
-    switch (step.kind) {
-      case 'getCar':
-        done = !!p.car;
-        break;
-      case 'goto':
-      case 'pickup':
-        if (step.at && dist(p.x, p.y, step.at.x, step.at.y) < step.r) done = true;
-        break;
-      case 'deliver': {
-        if (step.time !== undefined && m.state.t > step.time) { this.failMission('Too slow — the buyer walked away.'); return; }
-        if (step.at && dist(p.x, p.y, step.at.x, step.at.y) < step.r) done = true;
+    case 1: {
+      m.timer -= dt;
+      if (m.timer <= 0) {
+        G.hud.feed('Too slow — the buyers walked. Vera is giving you one more shot.');
+        G.audio.fail();
+        startMission(G, 1);
         break;
       }
-      case 'enterCarType':
-        done = !!p.car && p.car.type === step.type;
-        break;
-      case 'survive':
-        if (m.state.t >= step.time) done = true;
-        break;
-      case 'kill':
-        done = this.killCount >= step.count;
-        break;
-      case 'wait':
-        if (step.at && dist(p.x, p.y, step.at.x, step.at.y) < step.r) {
-          m.state.holdT = (m.state.holdT || 0) + dt;
-          if (m.state.holdT >= step.time) done = true;
+      const cp = CFG.courierPoints[m.checkpoint];
+      if (near(G, cp.x, cp.z, 7)) {
+        m.checkpoint += 1;
+        G.audio.click();
+        if (m.checkpoint >= CFG.courierPoints.length) {
+          completeMission(G);
         } else {
-          m.state.holdT = 0;
+          const next = CFG.courierPoints[m.checkpoint];
+          setMarker(G, next.x, next.z);
+          G.hud.feed(`Drop ${m.checkpoint} done. Next one is marked.`);
         }
-        break;
-      default:
-        break;
-    }
-    if (done) this.advanceStep();
-  }
-
-  advanceStep() {
-    const m = this.active;
-    m.stepIdx++;
-    this.G.audio.pickup();
-    if (m.stepIdx >= m.def.steps.length) {
-      this.completeMission();
-    } else {
-      this.beginStep();
-    }
-  }
-
-  completeMission() {
-    const m = this.active;
-    const G = this.G;
-    G.player.money += m.def.reward;
-    if (!G.save.missionsDone.includes(m.def.id)) G.save.missionsDone.push(m.def.id);
-    if (m.def.onComplete) m.def.onComplete(G);
-    G.saveGame();
-    G.audio.missionOk();
-    G.log('Mission complete: ' + m.def.title + ' +$' + m.def.reward);
-    this.active = null;
-    this.killCount = 0;
-    // Clear the heat after a job well done.
-    G.player.wanted = 0;
-    G.police.clear();
-    this.showDialogue(m.def.outro, () => this.offerNext());
-  }
-
-  failMission(reason) {
-    const G = this.G;
-    G.audio.missionFail();
-    G.log('Mission failed: ' + reason);
-    this.active = null;
-    this.killCount = 0;
-    G.gameOver('failed', reason);
-  }
-
-  onEvent(type, data) {
-    if (!this.active) return;
-    const step = this.currentStep();
-    if (!step) return;
-    if (type === 'shot-hit' && step.kind === 'kill' && data) {
-      if (data.dead && (step.kind2 === 'armed' ? data.armed : data.isCop)) {
-        this.killCount++;
       }
+      break;
     }
-    if (type === 'shot-hit' && step.kind === 'kill' && data && data.dead) {
-      // Count any kill toward the total if kind2 is not specific.
-      if (!step.kind2) this.killCount++;
+    case 2: {
+      if (m.stage === 'goto') {
+        if (near(G, CFG.harbour.x, CFG.harbour.z, 9)) {
+          m.stage = 'fight';
+          spawnThugs(G, [
+            [CFG.harbour.x - 4, CFG.harbour.z - 4],
+            [CFG.harbour.x + 3, CFG.harbour.z + 2],
+            [CFG.harbour.x - 1, CFG.harbour.z + 7],
+          ]);
+          hideMarker(G);
+          G.hud.feed('Three Marlin thugs — punch (F) or shoot (click). Watch your health!');
+        }
+      } else if (aliveThugs(G) === 0 && G.combat.enemies.length > 0) {
+        completeMission(G);
+      }
+      break;
     }
+    case 3: {
+      if (near(G, CFG.safehouse.x, CFG.safehouse.z, 8)) {
+        completeMission(G);
+      }
+      break;
+    }
+    case 4: {
+      if (m.stage === 'steal') {
+        const sedan = G.parkedCars.find((c) => c.missionCar === 'sedan');
+        if (G.player.inCar && G.player.car === sedan) {
+          m.stage = 'deliver';
+          setWanted(G, 4);
+          setMarker(G, CFG.hideout.x, CFG.hideout.z);
+          G.hud.feed('The gold sedan is yours! Four stars — drive like your life depends on it.');
+        }
+      } else if (G.player.inCar && near(G, CFG.hideout.x, CFG.hideout.z, 8)) {
+        completeMission(G);
+      }
+      break;
+    }
+    default:
+      break;
   }
+  // Keep the objective line fresh.
+  if (!m.won) G.hud.setObjective(MISSIONS[m.index].title, missionObjectiveText(G));
+}
 
-  abort() {
-    this.active = null;
-    this.dialogue = null;
-    this.offered = null;
+// Used by scene presets to jump straight into a mission state.
+export function jumpToMission(G, index, stage) {
+  startMission(G, index);
+  if (index === 2 && stage === 'fight') {
+    G.missions.stage = 'fight';
+    spawnThugs(G, [
+      [CFG.harbour.x - 4, CFG.harbour.z - 4],
+      [CFG.harbour.x + 3, CFG.harbour.z + 2],
+      [CFG.harbour.x - 1, CFG.harbour.z + 7],
+    ]);
+    hideMarker(G);
   }
 }

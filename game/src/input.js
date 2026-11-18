@@ -1,48 +1,82 @@
-// input.js — keyboard + mouse state, with edge detection for action keys.
-export class Input {
-  constructor(canvas) {
-    this.keys = new Set();
-    this.pressed = new Set(); // keys pressed since last poll
-    this.mouse = { x: 0, y: 0, down: false, clicked: false };
-    this.canvas = canvas;
-    window.addEventListener('keydown', (e) => {
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
-      if (!e.repeat) this.pressed.add(e.key.length === 1 ? e.key.toLowerCase() : e.key);
-      this.keys.add(e.key.length === 1 ? e.key.toLowerCase() : e.key);
-    });
-    window.addEventListener('keyup', (e) => {
-      this.keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key);
-    });
-    window.addEventListener('blur', () => { this.keys.clear(); });
-    canvas.addEventListener('mousemove', (e) => {
-      const r = canvas.getBoundingClientRect();
-      this.mouse.x = e.clientX - r.left;
-      this.mouse.y = e.clientY - r.top;
-    });
-    canvas.addEventListener('mousedown', (e) => {
-      this.mouse.down = true;
-      this.mouse.clicked = true;
-      const r = canvas.getBoundingClientRect();
-      this.mouse.x = e.clientX - r.left;
-      this.mouse.y = e.clientY - r.top;
-    });
-    window.addEventListener('mouseup', () => { this.mouse.down = false; });
+// Keyboard + mouse input for Solmar Bay.
+// Tracks held keys, drag-look deltas and click events. Nothing here touches
+// the game state; main.js polls it once per frame.
+export function createInput(canvas) {
+  const keys = new Set();
+  let dragYaw = 0;
+  let dragging = false;
+  let lastX = 0;
+  let lastY = 0;
+  let clickCount = 0;
+  const clicks = [];
+
+  function onKeyDown(e) {
+    if (e.repeat) return;
+    keys.add(e.code);
+    if (e.code === 'Space') e.preventDefault();
+  }
+  function onKeyUp(e) {
+    keys.delete(e.code);
+  }
+  function onPointerDown(e) {
+    dragging = true;
+    lastX = e.clientX;
+    lastY = e.clientY;
+  }
+  function onPointerMove(e) {
+    if (!dragging) return;
+    dragYaw += (e.clientX - lastX) * 0.005;
+    lastX = e.clientX;
+    lastY = e.clientY;
+  }
+  function onPointerUp() {
+    dragging = false;
+  }
+  function onClick(e) {
+    // Only count clicks on the game canvas (not on HUD buttons).
+    if (e.target === canvas) {
+      clickCount += 1;
+      clicks.push({ x: e.clientX, y: e.clientY });
+    }
   }
 
-  down(...names) { return names.some((n) => this.keys.has(n)); }
-  hit(...names) { return names.some((n) => this.pressed.has(n)); }
-  // Movement vector from WASD / arrows, screen-relative (camera never rotates).
-  moveVector() {
-    let x = 0, y = 0;
-    if (this.down('a', 'ArrowLeft')) x -= 1;
-    if (this.down('d', 'ArrowRight')) x += 1;
-    if (this.down('w', 'ArrowUp')) y -= 1;
-    if (this.down('s', 'ArrowDown')) y += 1;
-    if (x !== 0 && y !== 0) { x *= 0.7071; y *= 0.7071; }
-    return { x, y };
-  }
-  endFrame() {
-    this.pressed.clear();
-    this.mouse.clicked = false;
-  }
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  canvas.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('click', onClick);
+
+  return {
+    isDown(code) {
+      return keys.has(code);
+    },
+    // True once after the key goes down; the caller must clear it.
+    pressed(code) {
+      if (keys.has(code)) {
+        keys.delete(code);
+        return true;
+      }
+      return false;
+    },
+    // Accumulated horizontal drag since the last poll, in radians.
+    takeDragYaw() {
+      const d = dragYaw;
+      dragYaw = 0;
+      return d;
+    },
+    // Number of canvas clicks since the last poll.
+    takeClicks() {
+      const n = clickCount;
+      clickCount = 0;
+      clicks.length = 0;
+      return n;
+    },
+    clear() {
+      keys.clear();
+      dragYaw = 0;
+      clickCount = 0;
+      clicks.length = 0;
+    },
+  };
 }
