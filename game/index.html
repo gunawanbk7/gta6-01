@@ -1,20 +1,114 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Solmar Bay — Open-World Crime</title>
-<link rel="icon" href="data:,">
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0e13; }
-  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
-  /* Read aloud, never shown: the status line screen readers announce. */
-  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#0b1c2c;
+    font-family:Verdana,Arial,sans-serif;color:#fff;}
+  #app{position:fixed;inset:0;}
+  #scene{position:absolute;inset:0;}
+  #scene canvas{display:block;}
+  .panel{background:rgba(8,20,32,.72);border:1px solid rgba(255,255,255,.18);border-radius:8px;
+    padding:8px 12px;backdrop-filter:blur(2px);}
+  #hud{position:absolute;inset:0;pointer-events:none;display:none;}
+  #hudTopLeft{position:absolute;top:12px;left:12px;font-size:15px;line-height:1.5;}
+  #hudTopLeft b{color:#7dff9a;}
+  #healthBar{width:150px;height:10px;background:#222;border:1px solid #555;border-radius:5px;margin-top:4px;}
+  #healthFill{height:100%;width:100%;background:#37d67a;border-radius:5px;}
+  #stars{position:absolute;top:12px;right:12px;font-size:26px;letter-spacing:4px;color:#ffd23f;
+    text-shadow:0 0 8px #000;}
+  #objective{position:absolute;top:12px;left:50%;transform:translateX(-50%);max-width:46%;
+    text-align:center;font-size:14px;}
+  #objective b{color:#ffd23f;}
+  #speedo{position:absolute;bottom:14px;left:14px;font-size:22px;font-weight:bold;}
+  #speedo small{font-size:12px;font-weight:normal;color:#cfe8ff;}
+  #feed{position:absolute;bottom:14px;left:170px;max-width:340px;font-size:13px;line-height:1.45;}
+  #feed div{margin-top:3px;background:rgba(8,20,32,.66);padding:3px 8px;border-radius:5px;}
+  #minimapWrap{position:absolute;bottom:14px;right:14px;border:2px solid rgba(255,255,255,.5);
+    border-radius:50%;overflow:hidden;background:#0a2436;box-shadow:0 0 12px #000;}
+  #minimap{display:block;}
+  #dialog{position:absolute;left:50%;bottom:170px;transform:translateX(-50%);width:520px;max-width:80%;
+    font-size:14px;line-height:1.5;display:none;}
+  #dialog .who{color:#ffd23f;font-weight:bold;}
+  #crosshair{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:22px;
+    color:#fff;text-shadow:0 0 4px #000;display:none;}
+  #hint{position:absolute;bottom:190px;left:50%;transform:translateX(-50%);font-size:13px;
+    background:rgba(8,20,32,.7);padding:5px 10px;border-radius:6px;display:none;}
+  #startScreen{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(160deg,rgba(6,30,48,.88),rgba(120,40,10,.55));z-index:5;}
+  #startCard{max-width:640px;padding:28px 34px;text-align:center;
+    background:rgba(5,18,30,.82);border:1px solid rgba(255,210,63,.5);border-radius:14px;}
+  #startCard h1{margin:0 0 4px;font-size:44px;letter-spacing:2px;color:#ffd23f;
+    text-shadow:0 3px 0 #7a2e00,0 6px 18px #000;}
+  #startCard h2{margin:0 0 14px;font-size:15px;color:#9fd8ff;letter-spacing:4px;font-weight:normal;}
+  #startCard p{font-size:14px;line-height:1.6;color:#e8f4ff;text-align:left;}
+  #startCard .controls{font-size:13px;line-height:1.7;text-align:left;background:rgba(255,255,255,.06);
+    border-radius:8px;padding:10px 14px;margin:12px 0;}
+  .bigbtn{pointer-events:auto;cursor:pointer;background:#ffd23f;color:#231600;border:0;border-radius:8px;
+    font-size:18px;font-weight:bold;padding:12px 26px;margin:6px;}
+  .bigbtn:hover{background:#ffe27a;}
+  .smallbtn{pointer-events:auto;cursor:pointer;background:#12395a;color:#fff;border:1px solid #7fb8e8;
+    border-radius:8px;font-size:14px;padding:9px 16px;margin:6px;}
+  #endScreen{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(5,10,18,.78);z-index:6;}
+  #endCard{text-align:center;background:rgba(5,18,30,.9);border:1px solid #ffd23f;border-radius:14px;
+    padding:26px 40px;}
+  #endCard h1{color:#ffd23f;margin:0 0 10px;}
 </style>
 </head>
 <body>
-<canvas id="game" aria-label="Solmar Bay: an open-world crime game. Drive around the city, take jobs from Iris, avoid the police."></canvas>
-<p id="status" role="status" aria-live="polite"></p>
-<script type="module" src="./src/main.js"></script>
+<div id="app">
+  <div id="scene"></div>
+  <div id="hud">
+    <div id="hudTopLeft" class="panel">$ <b id="cash">$250</b><br>Health
+      <div id="healthBar"><div id="healthFill"></div></div>
+      <span id="carState">On foot</span>
+    </div>
+    <div id="stars"></div>
+    <div id="objective" class="panel"><b id="objTitle">Free roam</b><br><span id="objText">Explore Solmar Bay.</span></div>
+    <div id="speedo">0 <small>km/h</small></div>
+    <div id="feed"></div>
+    <div id="minimapWrap"><canvas id="minimap" width="170" height="170"></canvas></div>
+    <div id="dialog" class="panel"><span class="who" id="dialogWho"></span> <span id="dialogText"></span></div>
+    <div id="crosshair">+</div>
+    <div id="hint"></div>
+  </div>
+  <div id="startScreen">
+    <div id="startCard">
+      <h1>SOLMAR BAY</h1>
+      <h2>OPEN-WORLD CRIME &middot; A SUN-SOAKED COASTAL CITY</h2>
+      <p>You are <b>Rico Vale</b>, a wheelman fresh out of the Solmar docks with $250 and a
+      reputation to build. The Bay belongs to whoever takes it: steal cars, outrun the
+      Solmar Bay Police, run jobs for fixer <b>Marla Kade</b>, and climb from dock rat to
+      king of the coast. Four jobs stand between you and the big score.</p>
+      <div class="controls">
+        <b>W A S D</b> move / drive &nbsp;&middot;&nbsp; <b>Shift</b> sprint &nbsp;&middot;&nbsp;
+        <b>Mouse drag</b> look &nbsp;&middot;&nbsp; <b>E</b> steal / enter / exit car<br>
+        <b>Left click</b> fire pistol &nbsp;&middot;&nbsp; <b>F</b> punch &nbsp;&middot;&nbsp;
+        <b>Space</b> handbrake &nbsp;&middot;&nbsp; <b>P</b> pause &nbsp;&middot;&nbsp; <b>M</b> skip dialogue
+      </div>
+      <button class="bigbtn" id="playBtn">START ENGINE</button>
+      <button class="smallbtn" id="continueBtn">CONTINUE SAVED GAME</button>
+      <p style="text-align:center;font-size:12px;color:#9fc3dd;">Plays offline. Progress saves automatically.</p>
+    </div>
+  </div>
+  <div id="endScreen"><div id="endCard"><h1 id="endTitle">BUSTED</h1>
+    <p id="endText"></p><button class="bigbtn" id="retryBtn">BACK ON THE STREET</button></div></div>
+</div>
+<script src="vendor/three.min.js"></script>
+<script src="src/input.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/save.js"></script>
+<script src="src/city.js"></script>
+<script src="src/vehicles.js"></script>
+<script src="src/traffic.js"></script>
+<script src="src/player.js"></script>
+<script src="src/police.js"></script>
+<script src="src/combat.js"></script>
+<script src="src/missions.js"></script>
+<script src="src/hud.js"></script>
+<script src="src/main.js"></script>
 </body>
 </html>

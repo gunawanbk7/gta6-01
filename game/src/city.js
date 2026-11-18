@@ -1,228 +1,161 @@
-// city.js — builds Solmar Bay, a fictional coastal city, from a fixed seed so the
-// layout is identical every run. Roads on a grid, blocks full of buildings, parks,
-// a beach and harbour water on the east and south edges. Also answers collision
-// queries for the player, cars and pedestrians.
-import { mulberry32, randRange, pick, circleHitsRect, rectsOverlap } from './util.js';
+// city.js — builds Solmar Bay: street grid, buildings, beach, ocean, palms,
+// street props and lighting. Registers building AABBs in SB.colliders.
+var SB = SB || {};
+SB.colliders = [];   // {x0,z0,x1,z1}
+SB.city = (function () {
+  var ROAD_AT = [-80, -40, 0, 40, 80];
+  var CITY = 120;    // half-extent of the built-up area
 
-export const WORLD = 2800;
-export const ROAD_W = 64;
-
-// Vertical and horizontal road centre lines.
-export const V_ROADS = [140, 400, 660, 920, 1180, 1440, 1700, 1960, 2220];
-export const H_ROADS = [140, 400, 660, 920, 1180, 1440, 1700, 1960, 2220];
-
-const DISTRICT_COLORS = {
-  downtown: ['#7d8aa0', '#6b7a92', '#8b93a5', '#5d6b82', '#97a0b2'],
-  oldtown: ['#b08d6a', '#a08060', '#c09a72', '#96714f'],
-  marina: ['#e8dcc0', '#dccfae', '#cdbf9c', '#efe3c2'],
-  harbour: ['#8a7f72', '#7a6f62', '#96887a'],
-  industrial: ['#7a7568', '#6b655a', '#857c6e'],
-  suburbs: ['#c9a68a', '#bfae90', '#d4b89a', '#a8b39a'],
-};
-
-export function districtAt(x, y) {
-  if (x > 2050 && y < 2000) return 'marina';
-  if (y > 2050) return 'harbour';
-  if (x < 700 && y < 700) return 'oldtown';
-  if (x > 1900 && y < 800) return 'suburbs';
-  if (x < 700 && y > 1900) return 'industrial';
-  if (x > 850 && x < 1800 && y > 600 && y < 1500) return 'downtown';
-  return 'mixed';
-}
-
-export function buildCity(seed = 20261117) {
-  const rng = mulberry32(seed);
-  const buildings = [];
-  const parks = [];
-  const trees = [];
-  const containers = [];
-  const parkedSpots = [];
-
-  // Water: the bay along the east edge and the harbour basin at the south-east.
-  const water = [
-    { x: 2500, y: 0, w: 300, h: 2800 },          // open bay, east
-    { x: 2050, y: 2380, w: 450, h: 420 },        // harbour basin, south-east
-  ];
-  const beach = { x: 2400, y: 0, w: 100, h: 2380 };
-
-  // Buildings fill every block between roads (skipping the beach / water strip).
-  for (let ix = 0; ix < V_ROADS.length - 1; ix++) {
-    for (let iy = 0; iy < H_ROADS.length - 1; iy++) {
-      const bx0 = V_ROADS[ix] + ROAD_W / 2 + 14;
-      const by0 = H_ROADS[iy] + ROAD_W / 2 + 14;
-      const bx1 = V_ROADS[ix + 1] - ROAD_W / 2 - 14;
-      const by1 = H_ROADS[iy + 1] - ROAD_W / 2 - 14;
-      if (bx0 >= 2380) continue; // beach strip
-      const cx = (bx0 + bx1) / 2, cy = (by0 + by1) / 2;
-      const district = districtAt(cx, cy);
-      const roll = rng();
-      if (roll < 0.14 && district !== 'downtown') {
-        parks.push({ x: bx0, y: by0, w: bx1 - bx0, h: by1 - by0 });
-        const n = 3 + Math.floor(rng() * 4);
-        for (let i = 0; i < n; i++) {
-          trees.push({ x: randRange(rng, bx0 + 14, bx1 - 14), y: randRange(rng, by0 + 14, by1 - 14), r: 9 + rng() * 7 });
-        }
-        continue;
-      }
-      const cols = district === 'downtown' ? 2 : (rng() < 0.5 ? 2 : 1);
-      const rows = district === 'downtown' ? 2 : (rng() < 0.5 ? 2 : 1);
-      const cw = (bx1 - bx0) / cols, ch = (by1 - by0) / rows;
-      for (let c = 0; c < cols; c++) {
-        for (let r = 0; r < rows; r++) {
-          if (rng() < 0.12) continue; // empty lot / car park
-          const pad = 8 + rng() * 8;
-          const w = cw - pad * 2, h = ch - pad * 2;
-          const x = bx0 + c * cw + pad, y = by0 + r * ch + pad;
-          const palette = DISTRICT_COLORS[district] || DISTRICT_COLORS.downtown;
-          const tall = district === 'downtown' ? 26 + Math.floor(rng() * 40) : 6 + Math.floor(rng() * 10);
-          buildings.push({
-            x, y, w, h,
-            color: pick(rng, palette),
-            roof: pick(rng, ['#4a4f58', '#5a5148', '#3f4a55', '#6b5d4f']),
-            height: tall,
-            district,
-            windows: district === 'downtown' || district === 'harbour',
-          });
-          if (district === 'suburbs' && rng() < 0.7) {
-            trees.push({ x: x + w + 12, y: y + h / 2, r: 8 + rng() * 5 });
-          }
-        }
-      }
-      // Parked cars along the block edge.
-      if (rng() < 0.7) {
-        parkedSpots.push({
-          x: bx0 + 10 + rng() * (bx1 - bx0 - 20),
-          y: by1 - 6, angle: 0, vertical: false,
-        });
-      }
-    }
+  function canvasTexture(w, h, draw) {
+    var c = document.createElement('canvas'); c.width = w; c.height = h;
+    draw(c.getContext('2d'), w, h);
+    var t = new THREE.CanvasTexture(c);
+    return t;
   }
-
-  // Harbour containers, stacked in rows on the docks.
-  for (let i = 0; i < 26; i++) {
-    const row = Math.floor(i / 9), col = i % 9;
-    containers.push({
-      x: 2100 + col * 62, y: 2140 + row * 34,
-      w: 54, h: 26,
-      color: pick(rng, ['#b3543f', '#3f7ab3', '#c2a23f', '#4f8a4f', '#8a5f9e']),
+  function buildingTexture(base, lit) {
+    return canvasTexture(128, 256, function (g, w, h) {
+      g.fillStyle = base; g.fillRect(0, 0, w, h);
+      for (var y = 14; y < h - 10; y += 26) {
+        for (var x = 10; x < w - 10; x += 22) {
+          g.fillStyle = Math.random() < 0.55 ? lit : '#1d2b38';
+          g.fillRect(x, y, 13, 16);
+        }
+      }
     });
   }
-  // Marina palm trees along the beach.
-  for (let y = 120; y < 2300; y += 130) {
-    trees.push({ x: 2435 + randRange(rng, -8, 8), y: y + randRange(rng, -20, 20), r: 10, palm: true });
+  function roadTexture() {
+    return canvasTexture(128, 128, function (g, w, h) {
+      g.fillStyle = '#2b2f36'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#f5d76e'; g.fillRect(w / 2 - 2, 0, 4, h);
+      g.fillStyle = '#e8e8e8'; g.fillRect(6, 0, 2, h); g.fillRect(w - 8, 0, 2, h);
+    });
   }
-  for (let i = 0; i < 40; i++) {
-    trees.push({ x: randRange(rng, 80, 2320), y: randRange(rng, 80, 2320), r: 8 + rng() * 6 });
+
+  function addBox(scene, mat, w, h, d, x, y, z, collide) {
+    var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z); scene.add(m);
+    if (collide) SB.colliders.push({ x0: x - w / 2, z0: z - d / 2, x1: x + w / 2, z1: z + d / 2 });
+    return m;
   }
 
-  // Named landmarks the missions and HUD refer to.
-  const landmarks = {
-    safehouse: { x: 1180, y: 1990, label: 'Safehouse' },
-    hospital: { x: 660, y: 1180, label: 'Solmar General' },
-    policeHQ: { x: 1440, y: 920, label: 'Police HQ' },
-    club: { x: 1180, y: 920, label: 'Neon Palms Club' },
-    bank: { x: 1440, y: 1180, label: 'Solmar Central Bank' },
-    garage: { x: 920, y: 1700, label: 'Chop Shop' },
-    warehouse: { x: 2050, y: 2150, label: 'Harbour Warehouse' },
-    penthouse: { x: 2220, y: 400, label: 'Marina Penthouse' },
-    docks: { x: 2220, y: 2220, label: 'The Docks' },
-    impound: { x: 1560, y: 860, label: 'Impound Lot' },
-  };
+  function build(scene) {
+    SB.colliders.length = 0;
+    // Sky, sun, fog
+    scene.background = new THREE.Color(0x87c5e8);
+    scene.fog = new THREE.Fog(0x9fd0ea, 180, 420);
+    var sun = new THREE.DirectionalLight(0xfff2d0, 1.25);
+    sun.position.set(90, 140, 60); scene.add(sun);
+    scene.add(new THREE.AmbientLight(0xbfd9ee, 0.75));
+    var hemi = new THREE.HemisphereLight(0xbfe3ff, 0x3d5a3a, 0.5);
+    scene.add(hemi);
 
-  return { buildings, parks, trees, containers, parkedSpots, water, beach, landmarks, seed };
-}
+    // Ground slab (grass/concrete) and the beach + ocean to the south (+z)
+    var ground = new THREE.Mesh(new THREE.PlaneGeometry(560, 560),
+      new THREE.MeshLambertMaterial({ color: 0x5d8a4a }));
+    ground.rotation.x = -Math.PI / 2; ground.position.set(0, -0.05, -40); scene.add(ground);
+    var sand = new THREE.Mesh(new THREE.PlaneGeometry(560, 70),
+      new THREE.MeshLambertMaterial({ color: 0xe8d29a }));
+    sand.rotation.x = -Math.PI / 2; sand.position.set(0, 0, 135); scene.add(sand);
+    var ocean = new THREE.Mesh(new THREE.PlaneGeometry(560, 220),
+      new THREE.MeshLambertMaterial({ color: 0x1e7fa8 }));
+    ocean.rotation.x = -Math.PI / 2; ocean.position.set(0, -0.4, 280); scene.add(ocean);
+    var pier = addBox(scene, new THREE.MeshLambertMaterial({ color: 0x8a6a42 }), 10, 1, 60, -60, 0.4, 185, false);
 
-export function pointInWater(city, x, y) {
-  return city.water.some((w) => x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h);
-}
+    // Roads: dark strips along every grid line, with a lighter centre line texture
+    var roadMat = new THREE.MeshLambertMaterial({ map: roadTexture() });
+    roadMat.map.wrapS = roadMat.map.wrapT = THREE.RepeatWrapping;
+    ROAD_AT.forEach(function (c) {
+      var ns = new THREE.Mesh(new THREE.PlaneGeometry(10, 260), roadMat.clone());
+      ns.material.map = roadTexture(); ns.material.map.repeat.set(1, 20);
+      ns.rotation.x = -Math.PI / 2; ns.position.set(c, 0.02, 0); scene.add(ns);
+      var ew = new THREE.Mesh(new THREE.PlaneGeometry(260, 10), roadMat.clone());
+      ew.material.map = roadTexture(); ew.material.map.repeat.set(20, 1);
+      ew.rotation.x = -Math.PI / 2; ew.position.set(0, 0.02, c); scene.add(ew);
+    });
 
-export function pointBlocked(city, x, y, r) {
-  if (x < r || y < r || x > WORLD - r || y > WORLD - r) return true;
-  if (pointInWater(city, x, y)) return true;
-  for (const b of city.buildings) {
-    if (circleHitsRect(x, y, r, b)) return true;
-  }
-  for (const c of city.containers) {
-    if (circleHitsRect(x, y, r, c)) return true;
-  }
-  return false;
-}
-
-// Push a circle out of buildings/water; returns true if a collision happened.
-export function resolveCircle(city, p, r) {
-  let hit = false;
-  if (p.x < r) { p.x = r; hit = true; }
-  if (p.y < r) { p.y = r; hit = true; }
-  if (p.x > WORLD - r) { p.x = WORLD - r; hit = true; }
-  if (p.y > WORLD - r) { p.y = WORLD - r; hit = true; }
-  const solids = city.buildings;
-  for (const b of solids) {
-    if (circleHitsRect(p.x, p.y, r, b)) {
-      const nx = Math.max(b.x, Math.min(p.x, b.x + b.w));
-      const ny = Math.max(b.y, Math.min(p.y, b.y + b.h));
-      let dx = p.x - nx, dy = p.y - ny;
-      let d = Math.sqrt(dx * dx + dy * dy);
-      if (d < 0.001) { dx = 0; dy = -1; d = 1; }
-      p.x = nx + (dx / d) * r; p.y = ny + (dy / d) * r;
-      hit = true;
+    // Buildings inside each block, with varied heights and colours
+    var palette = ['#c96f4a', '#d9a441', '#7fa3b8', '#b8576a', '#8fae7a', '#a98fc7', '#e0d6c2', '#5f7f9e'];
+    var lit = ['#ffe9a8', '#cfe8ff', '#ffd9a0'];
+    var rng = 7;
+    function rnd() { rng = (rng * 16807) % 2147483647; return rng / 2147483647; }
+    for (var bx = 0; bx < 4; bx++) {
+      for (var bz = 0; bz < 4; bz++) {
+        var cx = -60 + bx * 40, cz = -60 + bz * 40;
+        var n = 1 + Math.floor(rnd() * 2);
+        for (var k = 0; k < n; k++) {
+          var w = 12 + rnd() * 10, d = 12 + rnd() * 10, h = 8 + rnd() * 30;
+          var ox = (k === 0 ? -6 : 7) + (rnd() - 0.5) * 4;
+          var oz = (k === 0 ? -6 : 7) + (rnd() - 0.5) * 4;
+          var tex = buildingTexture(palette[Math.floor(rnd() * palette.length)],
+            lit[Math.floor(rnd() * lit.length)]);
+          addBox(scene, new THREE.MeshLambertMaterial({ map: tex }), w, h, d,
+            cx + ox, h / 2, cz + oz, true);
+        }
+      }
     }
-  }
-  for (const c of city.containers) {
-    if (circleHitsRect(p.x, p.y, r, c)) {
-      const nx = Math.max(c.x, Math.min(p.x, c.x + c.w));
-      const ny = Math.max(c.y, Math.min(p.y, c.y + c.h));
-      let dx = p.x - nx, dy = p.y - ny;
-      let d = Math.sqrt(dx * dx + dy * dy);
-      if (d < 0.001) { dx = 0; dy = -1; d = 1; }
-      p.x = nx + (dx / d) * r; p.y = ny + (dy / d) * r;
-      hit = true;
+    // Landmark: the Solmar Tower at the plaza centre, and the Bay Bank
+    var tower = addBox(scene, new THREE.MeshLambertMaterial({ map: buildingTexture('#4a6f8f', '#ffe9a8') }),
+      22, 62, 22, 20, 31, -20, true);
+    tower.name = 'Solmar Tower';
+    addBox(scene, new THREE.MeshLambertMaterial({ color: 0xd8c98f }), 20, 12, 16, -60, 6, 60, true).name = 'Bay Bank';
+
+    // Palm trees along the beachfront and the marina road
+    var trunkMat = new THREE.MeshLambertMaterial({ color: 0x7a5a33 });
+    var leafMat = new THREE.MeshLambertMaterial({ color: 0x2f8f4e });
+    function palm(x, z) {
+      var g = new THREE.Group();
+      var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.4, 7, 6), trunkMat);
+      trunk.position.y = 3.5; g.add(trunk);
+      for (var i = 0; i < 5; i++) {
+        var leaf = new THREE.Mesh(new THREE.ConeGeometry(1.1, 3.4, 4), leafMat);
+        var a = i / 5 * Math.PI * 2;
+        leaf.position.set(Math.cos(a) * 1.1, 7.2, Math.sin(a) * 1.1);
+        leaf.rotation.z = Math.cos(a) * 0.9; leaf.rotation.x = -Math.sin(a) * 0.9;
+        g.add(leaf);
+      }
+      g.position.set(x, 0, z); scene.add(g);
     }
-  }
-  if (pointInWater(city, p.x, p.y)) {
-    // Shove back toward the beach line (west) or north of the basin.
-    if (p.x > 2440) p.x = 2440;
-    if (p.y > 2370 && p.x > 2040) p.y = 2370;
-    hit = true;
-  }
-  return hit;
-}
+    for (var px = -100; px <= 100; px += 25) { palm(px, 108); palm(px + 12, 96); }
+    for (var pz = -80; pz <= 80; pz += 40) palm(-96, pz);
 
-export function isOnRoad(x, y) {
-  const onV = V_ROADS.some((rx) => Math.abs(x - rx) < ROAD_W / 2);
-  const onH = H_ROADS.some((ry) => Math.abs(y - ry) < ROAD_W / 2);
-  return onV || onH;
-}
+    // Street lamps along the main avenue
+    var lampMat = new THREE.MeshLambertMaterial({ color: 0x30343a });
+    var bulbMat = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
+    ROAD_AT.forEach(function (c) {
+      [-100, -60, -20, 20, 60, 100].forEach(function (t) {
+        var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 6, 6), lampMat);
+        pole.position.set(c + 5.6, 3, t); scene.add(pole);
+        var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 6), bulbMat);
+        bulb.position.set(c + 5.6, 6.1, t); scene.add(bulb);
+      });
+    });
 
-export function nearestRoadPoint(x, y) {
-  let best = null, bd = 1e9;
-  for (const rx of V_ROADS) {
-    const d = Math.abs(x - rx);
-    if (d < bd) { bd = d; best = { x: rx, y, axis: 'v' }; }
+    // Boardwalk benches and crates as small props near the marina
+    for (var i = 0; i < 8; i++) {
+      addBox(scene, new THREE.MeshLambertMaterial({ color: 0x9a7b4f }), 2.4, 0.5, 0.8,
+        -70 + i * 5, 0.5, 112, true);
+    }
+    return { cityHalf: CITY, roads: ROAD_AT };
   }
-  for (const ry of H_ROADS) {
-    const d = Math.abs(y - ry);
-    if (d < bd) { bd = d; best = { x, y: ry, axis: 'h' }; }
-  }
-  return best;
-}
 
-// A random point on a road, at least `minDist` from (fx, fy).
-export function randomRoadPoint(rng, fx, fy, minDist = 500) {
-  for (let tries = 0; tries < 40; tries++) {
-    const vertical = rng() < 0.5;
-    const road = pick(rng, vertical ? V_ROADS : H_ROADS);
-    const along = randRange(rng, 120, WORLD - 120);
-    const x = vertical ? road : along;
-    const y = vertical ? along : road;
-    if (Math.hypot(x - fx, y - fy) >= minDist) return { x, y };
+  // Circle (radius r) vs building AABB push-out. Returns corrected x/z.
+  function collide(x, z, r) {
+    for (var i = 0; i < SB.colliders.length; i++) {
+      var b = SB.colliders[i];
+      var nx = Math.max(b.x0, Math.min(x, b.x1));
+      var nz = Math.max(b.z0, Math.min(z, b.z1));
+      var dx = x - nx, dz = z - nz;
+      var d2 = dx * dx + dz * dz;
+      if (d2 < r * r) {
+        if (d2 < 1e-6) { x = b.x1 + r; continue; }
+        var d = Math.sqrt(d2);
+        x = nx + dx / d * r; z = nz + dz / d * r;
+      }
+    }
+    x = Math.max(-170, Math.min(170, x));
+    z = Math.max(-170, Math.min(165, z));
+    return { x: x, z: z };
   }
-  return { x: 400, y: 400 };
-}
 
-export function roadNameAt(x, y) {
-  const v = V_ROADS.reduce((a, b) => (Math.abs(x - b) < Math.abs(x - a) ? b : a), V_ROADS[0]);
-  const h = H_ROADS.reduce((a, b) => (Math.abs(y - b) < Math.abs(y - a) ? b : a), H_ROADS[0]);
-  const streets = ['Palm Row', 'Coral Ave', 'Sunset Blvd', 'Harbour Rd', 'Bay St', 'Marina Way', 'Cactus Ln', 'Pier St', 'Solmar Ave'];
-  const vi = V_ROADS.indexOf(v), hi = H_ROADS.indexOf(h);
-  return streets[vi % streets.length] + ' & ' + streets[(hi + 4) % streets.length];
-}
+  return { build: build, collide: collide, roads: ROAD_AT };
+})();
