@@ -1,31 +1,44 @@
-# gta6-01
+# Solmar Bay — Open-World Crime
 
-[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
-[![rank](https://make.fun/badge/gta6-01/gunawanbk7/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
-[![reward](https://make.fun/badge/gta6-01/gunawanbk7/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![make.fun](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01)
+[![Rank](https://make.fun/badge/gta6-01/gunawanbk7/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01)
+[![Reward](https://make.fun/badge/gta6-01/gunawanbk7/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01)
 
-**Solmar Bay** — an original open-world crime game built for make.fun's "Make GTA 6" bounty. A fictional coastal city you explore on foot and by car: steal cars, outrun the Solmar Bay PD under a five-star wanted system, take six story jobs from the fixer Iris Delgado, fight rival gangs, run taxi fares, and hunt hidden cash. Everything — the city, the characters, the vehicles, the story, the art and the music — is invented for this game.
+An entry for the [make.fun "Make GTA 6" bounty](https://make.fun/bounty/gta6-01).
 
-## Run it
+**Solmar Bay** is a complete open-world crime game that runs offline in a desktop browser from static files. Rico Delmar returns to the sun-soaked coastal city of Solmar Bay owing money to Vera Kosta's Marlin Crew — and has one week of jobs to work it off.
+
+## What is in the game
+
+- Explore a 3D coastal city on foot and by car (three.js, vendored under `game/vendor/`)
+- Steal cars and drive them; traffic cars and pedestrians fill the streets
+- A wanted level with police interceptors that chase and ram you
+- A 5-mission story chain with objectives, markers, dialogue and cash rewards
+- Combat: punch and pistol, with reloads and enemy health bars
+- HUD with cash, health, wanted stars, speed, mission objective, message feed and a live minimap
+- Start screen with story intro and controls; progress saves to localStorage
+- Synthesised sound (WebAudio only — no audio files, no network requests)
+
+## Run
 
 ```sh
-node serve.ts
-```
+# Play locally (any static server works):
+python3 -m http.server 8123 --directory game
+# then open http://localhost:8123/
 
-Then open http://localhost:8080 in a desktop browser. No build step, no network requests: the game is static files under `game/`, with all sound and music synthesised live in WebAudio.
+# Hand the entry in (writes dossier.json):
+mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+```
 
 ## Controls
 
-- **WASD** move · **SHIFT** run · **E** enter / exit a car · **SPACE** punch (on foot) / handbrake (driving) · **CLICK** shoot (once you earn the pistol) · **P** pause · **M** mute
+WASD move / drive · mouse drag to look · E steal / enter / exit car · F punch · left click shoot · R reload · Shift sprint · Space brake · P pause · M mute
 
-## How it plays
+## Layout
 
-- **Open world**: Downtown, Old Town, the Marina beach, the Harbour docks and the Industrial quarter, with live traffic and pedestrians.
-- **Wanted level**: crimes raise your stars; police cruisers chase and ram, officers arrest on foot. Lay low and the heat fades.
-- **Missions**: six jobs with dialogue, objectives, timers and chases — from a first pickup to the Big Score.
-- **Side work**: taxi fares and 12 hidden cash stashes.
-- **Progress saves** in your browser (localStorage) after every job.
-
----
-
-<sub>Entered on [make.fun](https://make.fun/?ref=gunawan-ramadhan&utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>
+- `main.ts` — hand-in program (Node 22, stdlib only)
+- `game/index.html` — page, HUD and menus
+- `game/src/` — one focused module per system: city, player, vehicles, traffic, police, missions, combat, hud, audio, save, input, main
+- `game/vendor/three.min.js` — three.js r160 (vendored)
+- `vendor/makefun-game.ts` — the kit's dossier library, unchanged
+- `screenshots/` — real renders taken while play-testing in headless Chrome
