@@ -1,303 +1,217 @@
-// missions.js — the story of Solmar Bay. Jax Marlowe, a getaway driver trying to
-// go straight, takes jobs for Iris Delgado, a fixer with a long memory. Six jobs,
-// each a chain of small steps (go somewhere, fetch something, survive, escape),
-// plus taxi fares and hidden cash as side work. Every step is data, so the same
-// engine runs the story, the screenshots and the self-test.
-import { dist } from './util.js';
-
-const L = (x, y) => ({ x, y });
+// Solmar Bay — the story mission chain. Five jobs for Rico "Rook" Marlin,
+// each with a briefing, a marker in the world, an objective and a cash
+// reward. The game loop drives this state machine every frame.
+const THREE = window.THREE;
 
 export const MISSIONS = [
   {
-    id: 'm1', title: 'First Pickup', reward: 150,
-    intro: [
-      ['IRIS', 'Jax. You still owe me for the Marina job. One pickup and we are square.'],
-      ['JAX', 'One pickup. Then I am done driving for you, Iris.'],
-      ['IRIS', 'Sure you are. I am at the Safehouse. Get a car, come get me, take me to the Neon Palms Club.'],
+    id: 'first-wheels',
+    title: '1 — First Wheels',
+    reward: 250,
+    briefing: [
+      ['ROOK', 'Fresh out of the yard, broke, and Solmar Bay owes me.'],
+      ['MARCO', 'Rook! My garage needs a driver. Grab any car on the street — keys are for honest men — and bring it to me.'],
     ],
-    outro: [['IRIS', 'Smooth. Maybe you are not as rusty as you look. I will call you.']],
     steps: [
-      { kind: 'getCar', label: 'Get a car (press E near one)' },
-      { kind: 'goto', at: L(1180, 1990), r: 70, label: 'Pick up Iris at the Safehouse' },
-      { kind: 'goto', at: L(1180, 920), r: 70, label: 'Drive Iris to the Neon Palms Club', needCar: true },
+      { type: 'enterCar', text: 'Steal a car (walk up to one and press E)' },
+      { type: 'reach', place: 'garage', radius: 10, inCar: true, text: 'Drive the car to Marco\'s Garage' },
     ],
   },
   {
-    id: 'm2', title: 'The Drop', reward: 300,
-    intro: [
-      ['IRIS', 'A package is waiting at the Harbour Warehouse. No questions, no opening it.'],
-      ['JAX', 'And the other end?'],
-      ['IRIS', 'Marina Penthouse. Two minutes, Jax. The buyer does not wait.'],
+    id: 'beach-drop',
+    title: '2 — Beach Drop',
+    reward: 400,
+    briefing: [
+      ['MARCO', 'Good wheels. Now a package needs to reach Pier 7 before the tide comes in. No questions, no stops.'],
+      ['ROOK', 'Pier 7. Got it. Sun, sand and a payday.'],
     ],
-    outro: [['IRIS', 'Delivered clean. Here is something for the trouble — a pistol. You will need it.']],
     steps: [
-      { kind: 'goto', at: L(2050, 2150), r: 60, label: 'Collect the package at the Harbour Warehouse' },
-      { kind: 'deliver', at: L(2220, 400), r: 60, time: 120, label: 'Deliver to the Marina Penthouse' },
-    ],
-    onComplete: (G) => { G.player.hasPistol = true; },
-  },
-  {
-    id: 'm3', title: 'Hot Wheels', reward: 450,
-    intro: [
-      ['IRIS', 'A Comet GT is parked outside the Marina Penthouse. Red. Fast. Not theirs for long.'],
-      ['JAX', 'Stealing a sports car in broad daylight. Great.'],
-      ['IRIS', 'Bring it to the Chop Shop in the Industrial quarter. The cops will notice — drive like it.'],
-    ],
-    outro: [['IRIS', 'The Comet is ours. The Chop Shop paid well. You drive like you mean it, Jax.']],
-    steps: [
-      { kind: 'enterCarType', type: 'sports', at: L(2220, 400), r: 60, label: 'Steal the Comet GT at the Marina' },
-      { kind: 'goto', at: L(920, 1700), r: 70, label: 'Deliver the Comet to the Chop Shop', needCar: true, wanted: 2 },
+      { type: 'reach', place: 'pier', radius: 9, text: 'Deliver the package to Pier 7' },
     ],
   },
   {
-    id: 'm4', title: 'Bank Run', reward: 800,
-    intro: [
-      ['IRIS', 'The crew hits Solmar Central Bank at noon. You are the wheelman — and the muscle.'],
-      ['JAX', 'I said no more bank jobs.'],
-      ['IRIS', 'You said that last time too. Get the crew to the bank, hold the street, then run.'],
+    id: 'heat',
+    title: '3 — Heat on the Strip',
+    reward: 500,
+    briefing: [
+      ['MARCO', 'The Bay PD clocked your plate at the pier. Two stars, Rook. Lose them — duck the cruisers till the heat dies.'],
+      ['ROOK', 'They\'ll have to catch me first.'],
     ],
-    outro: [['IRIS', 'The crew is clear and the money is split. You are officially back in the game, Jax.']],
     steps: [
-      { kind: 'getCar', label: 'Get a getaway car' },
-      { kind: 'goto', at: L(1440, 1180), r: 70, label: 'Take the crew to Solmar Central Bank', needCar: true },
-      { kind: 'survive', time: 45, label: 'Hold the street — survive the police response!', wanted: 3, waves: true },
-      { kind: 'goto', at: L(1180, 1990), r: 80, label: 'Lose the heat — escape to the Safehouse' },
+      { type: 'loseWanted', text: 'Lose the wanted level (stay out of sight of the police)' },
     ],
+    wantedOnStart: 2,
   },
   {
-    id: 'm5', title: 'Harbour Ambush', reward: 1000,
-    intro: [
-      ['IRIS', 'The Vipers set a trap for me at the Docks. Six of them, armed. I need my driver to be my gun.'],
-      ['JAX', 'Six armed men. You really know how to pick friends.'],
-      ['IRIS', 'End them, Jax. Then get me out of there.'],
+    id: 'big-score',
+    title: '4 — The Big Score',
+    reward: 1200,
+    briefing: [
+      ['ROOK', 'The Solmar Bank vault. One night, one crew: me.'],
+      ['MARCO', 'Get in, hold the door, grab the cash and run. The whole Bay will be on you — bring it home to the Safehouse.'],
     ],
-    outro: [['IRIS', 'The Vipers will think twice now. You fight like a cornered animal, Jax. I like it.']],
     steps: [
-      { kind: 'goto', at: L(2220, 2220), r: 70, label: 'Reach the Docks' },
-      { kind: 'kill', count: 6, kind2: 'armed', label: 'Take out the 6 Vipers at the Docks', spawnArmed: 6 },
-      { kind: 'goto', at: L(1180, 1990), r: 80, label: 'Drive Iris back to the Safehouse' },
+      { type: 'reach', place: 'bank', radius: 8, text: 'Get to Solmar Bank' },
+      { type: 'channel', place: 'bank', radius: 8, seconds: 3, text: 'Hold E at the bank door to crack the vault' },
+      { type: 'reach', place: 'safehouse', radius: 10, text: 'Escape to the Safehouse with the cash' },
     ],
+    wantedAfterChannel: 3,
   },
   {
-    id: 'm6', title: 'The Big Score', reward: 5000,
-    intro: [
-      ['IRIS', 'Last job, Jax. A Vault Hauler sits in the Police Impound Lot. We take it, we crack the bank vault, we vanish.'],
-      ['JAX', 'Stealing from the police to rob a bank. If this goes wrong, I am done.'],
-      ['IRIS', 'It will not go wrong. You are the best wheelman in Solmar Bay. Prove it.'],
-    ],
-    outro: [
-      ['IRIS', 'Five thousand. Clean. The vault, the van, the whole city — ours.'],
-      ['JAX', 'Then I am done, Iris. For real this time. Solmar Bay is mine now.'],
+    id: 'payday',
+    title: '5 — Payday',
+    reward: 800,
+    briefing: [
+      ['MARCO', 'One last run, Rook. Bring a car to the garage and we split the take. After this, Solmar Bay is yours.'],
+      ['ROOK', 'Last run. Then I own this town.'],
     ],
     steps: [
-      { kind: 'enterCarType', type: 'armored', at: L(1560, 860), r: 70, label: 'Steal the Vault Hauler from the Impound Lot' },
-      { kind: 'goto', at: L(1440, 1180), r: 70, label: 'Drive the Hauler to Solmar Central Bank', needCar: true, wanted: 3 },
-      { kind: 'wait', time: 20, at: L(1440, 1180), r: 90, label: 'Hold position while the vault is cracked', wanted: 4 },
-      { kind: 'goto', at: L(1180, 1990), r: 80, label: 'Escape to the Safehouse — lose the heat!', wanted: 5 },
+      { type: 'reach', place: 'garage', radius: 10, inCar: true, text: 'Deliver a car to Marco\'s Garage' },
     ],
   },
 ];
 
 export class MissionManager {
-  constructor(G) {
-    this.G = G;
-    this.active = null; // { def, stepIdx, stepState }
-    this.offered = null; // mission def waiting for the player to accept
-    this.dialogue = null; // { speaker, lines, i, onDone }
-    this.killCount = 0;
-    this.waveT = 0;
+  constructor(scene) {
+    this.scene = scene;
+    this.index = 0; // current mission
+    this.step = 0;
+    this.active = false;
+    this.done = false; // whole chain finished
+    this.channelProgress = 0;
+    this.channelDone = false;
+    // The beacon: a glowing pillar + ring that marks the objective.
+    this.beacon = new THREE.Group();
+    const pillar = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.2, 1.2, 30, 12, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0x39ff88, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    pillar.position.y = 15;
+    this.beacon.add(pillar);
+    // A floating diamond above the marker so it reads from any angle.
+    const diamond = new THREE.Mesh(
+      new THREE.OctahedronGeometry(1.6),
+      new THREE.MeshBasicMaterial({ color: 0x39ff88 }),
+    );
+    diamond.position.y = 9;
+    this.beacon.add(diamond);
+    this.diamond = diamond;
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(2.2, 3.2, 24),
+      new THREE.MeshBasicMaterial({ color: 0x39ff88, transparent: true, opacity: 0.8, side: THREE.DoubleSide }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.15;
+    this.beacon.add(ring);
+    this.ring = ring;
+    this.beacon.visible = false;
+    scene.add(this.beacon);
+    this.markerPos = null;
   }
 
-  nextMission() {
-    const done = this.G.save.missionsDone || [];
-    return MISSIONS.find((m) => !done.includes(m.id)) || null;
+  get current() { return MISSIONS[this.index] || null; }
+  get currentStep() {
+    const m = this.current;
+    return m ? m.steps[this.step] : null;
   }
 
-  offerNext() {
-    const next = this.nextMission();
-    if (next && !this.active && !this.offered) {
-      this.offered = next;
-      this.G.audio.phone();
-    }
-  }
-
-  startMission(def) {
-    this.offered = null;
-    this.active = { def, stepIdx: 0, state: {} };
-    this.killCount = 0;
-    this.showDialogue(def.intro, () => this.beginStep());
-    this.G.log('Mission started: ' + def.title);
-  }
-
-  showDialogue(lines, onDone) {
-    this.dialogue = { lines, i: 0, onDone };
-  }
-
-  advanceDialogue() {
-    if (!this.dialogue) return;
-    this.dialogue.i++;
-    if (this.dialogue.i >= this.dialogue.lines.length) {
-      const cb = this.dialogue.onDone;
-      this.dialogue = null;
-      if (cb) cb();
-    }
-  }
-
-  beginStep() {
-    const m = this.active;
+  start(ctx) {
+    const m = this.current;
     if (!m) return;
-    const step = m.def.steps[m.stepIdx];
-    m.state = { t: 0, done: false };
-    if (step.wanted !== undefined) {
-      this.G.player.wanted = Math.max(this.G.player.wanted, step.wanted);
-      this.G.player.wantedT = 0;
-      this.G.police.maintain(this.G.player.wanted, this.G.player.x, this.G.player.y);
+    this.active = true;
+    this.step = 0;
+    this.channelProgress = 0;
+    this.channelDone = false;
+    ctx.showDialogue(m.title, m.briefing);
+    ctx.say(`Mission started: ${m.title}`);
+    if (m.wantedOnStart) ctx.setWanted(m.wantedOnStart);
+    this.refreshMarker(ctx.landmarks);
+  }
+
+  refreshMarker(landmarks) {
+    const s = this.currentStep;
+    if (!s || !s.place) {
+      this.markerPos = null;
+      this.beacon.visible = false;
+      return;
     }
-    if (step.spawnArmed) {
-      for (let i = 0; i < step.spawnArmed; i++) {
-        const a = (i / step.spawnArmed) * Math.PI * 2;
-        const ped = this.G.peds.spawn(step.at.x + Math.cos(a) * 120, step.at.y + Math.sin(a) * 120, { armed: true });
-        ped.shirt = '#8a2f3f'; ped.pants = '#222';
+    const p = landmarks[s.place];
+    this.markerPos = { x: p.x, z: p.z };
+    this.beacon.position.set(p.x, 0, p.z);
+    this.beacon.visible = true;
+  }
+
+  objectiveText() {
+    if (this.done) return 'All missions complete — Solmar Bay is yours!';
+    const m = this.current;
+    if (!m) return '';
+    const s = this.currentStep;
+    if (!s) return m.title;
+    let text = s.text;
+    if (s.type === 'channel' && this.channelProgress > 0) {
+      text += ` — ${Math.floor((this.channelProgress / s.seconds) * 100)}%`;
+    }
+    return `${m.title}: ${text}`;
+  }
+
+  // Advance one step, or finish the mission and pay out.
+  advance(ctx) {
+    const m = this.current;
+    this.step += 1;
+    this.channelProgress = 0;
+    if (this.step >= m.steps.length) {
+      ctx.addCash(m.reward);
+      ctx.say(`Mission complete: ${m.title} — +$${m.reward}`);
+      ctx.audio?.missionDone();
+      this.index += 1;
+      this.step = 0;
+      if (this.index >= MISSIONS.length) {
+        this.done = true;
+        this.active = false;
+        this.beacon.visible = false;
+        this.markerPos = null;
+        ctx.onAllMissionsDone?.();
+        return;
       }
-    }
-    if (step.kind === 'enterCarType') {
-      this.G.spawnMissionCar(step.type, step.at.x, step.at.y);
-    }
-    this.waveT = 0;
-  }
-
-  currentStep() {
-    return this.active ? this.active.def.steps[this.active.stepIdx] : null;
-  }
-
-  currentObjective() {
-    if (this.dialogue) return '…';
-    const step = this.currentStep();
-    if (step) return step.label;
-    if (this.offered) return 'New job from Iris — press ENTER';
-    if (!this.nextMission()) return 'All jobs done — King of Solmar Bay!';
-    return 'Free roam — Iris will call with work';
-  }
-
-  stepTarget() {
-    const step = this.currentStep();
-    if (!step || !step.at) return null;
-    return step.at;
-  }
-
-  update(dt) {
-    if (this.dialogue) return; // game is paused for dialogue
-    const m = this.active;
-    if (!m) return;
-    const step = m.def.steps[m.stepIdx];
-    const p = this.G.player;
-    m.state.t += dt;
-
-    // Police waves during survive steps.
-    if (step.waves) {
-      this.waveT += dt;
-      if (this.waveT > 6) {
-        this.waveT = 0;
-        for (let i = 0; i < 2; i++) {
-          const a = Math.random() * Math.PI * 2;
-          const cop = this.G.peds.spawn(p.x + Math.cos(a) * 420, p.y + Math.sin(a) * 420, { isCop: true });
-          cop.shirt = '#24344d'; cop.pants = '#1a2436';
-        }
-      }
-    }
-
-    let done = false;
-    switch (step.kind) {
-      case 'getCar':
-        done = !!p.car;
-        break;
-      case 'goto':
-      case 'pickup':
-        if (step.at && dist(p.x, p.y, step.at.x, step.at.y) < step.r) done = true;
-        break;
-      case 'deliver': {
-        if (step.time !== undefined && m.state.t > step.time) { this.failMission('Too slow — the buyer walked away.'); return; }
-        if (step.at && dist(p.x, p.y, step.at.x, step.at.y) < step.r) done = true;
-        break;
-      }
-      case 'enterCarType':
-        done = !!p.car && p.car.type === step.type;
-        break;
-      case 'survive':
-        if (m.state.t >= step.time) done = true;
-        break;
-      case 'kill':
-        done = this.killCount >= step.count;
-        break;
-      case 'wait':
-        if (step.at && dist(p.x, p.y, step.at.x, step.at.y) < step.r) {
-          m.state.holdT = (m.state.holdT || 0) + dt;
-          if (m.state.holdT >= step.time) done = true;
-        } else {
-          m.state.holdT = 0;
-        }
-        break;
-      default:
-        break;
-    }
-    if (done) this.advanceStep();
-  }
-
-  advanceStep() {
-    const m = this.active;
-    m.stepIdx++;
-    this.G.audio.pickup();
-    if (m.stepIdx >= m.def.steps.length) {
-      this.completeMission();
+      this.start(ctx);
     } else {
-      this.beginStep();
+      this.refreshMarker(ctx.landmarks);
     }
   }
 
-  completeMission() {
-    const m = this.active;
-    const G = this.G;
-    G.player.money += m.def.reward;
-    if (!G.save.missionsDone.includes(m.def.id)) G.save.missionsDone.push(m.def.id);
-    if (m.def.onComplete) m.def.onComplete(G);
-    G.saveGame();
-    G.audio.missionOk();
-    G.log('Mission complete: ' + m.def.title + ' +$' + m.def.reward);
-    this.active = null;
-    this.killCount = 0;
-    // Clear the heat after a job well done.
-    G.player.wanted = 0;
-    G.police.clear();
-    this.showDialogue(m.def.outro, () => this.offerNext());
-  }
+  // ctx: {pos, inCar, wanted, holdingE, dt, landmarks, setWanted, addCash, say, audio, showDialogue, onAllMissionsDone}
+  update(dt, ctx) {
+    if (!this.active || this.done) return;
+    const m = this.current;
+    const s = this.currentStep;
+    if (!s) return;
+    const t = (this.beacon.visible ? (performance.now() / 1000) : 0);
+    this.ring.scale.setScalar(1 + Math.sin(t * 3) * 0.15);
+    this.diamond.position.y = 9 + Math.sin(t * 2.2) * 0.8;
+    this.diamond.rotation.y = t * 1.5;
 
-  failMission(reason) {
-    const G = this.G;
-    G.audio.missionFail();
-    G.log('Mission failed: ' + reason);
-    this.active = null;
-    this.killCount = 0;
-    G.gameOver('failed', reason);
-  }
-
-  onEvent(type, data) {
-    if (!this.active) return;
-    const step = this.currentStep();
-    if (!step) return;
-    if (type === 'shot-hit' && step.kind === 'kill' && data) {
-      if (data.dead && (step.kind2 === 'armed' ? data.armed : data.isCop)) {
-        this.killCount++;
+    if (s.type === 'enterCar') {
+      if (ctx.inCar) this.advance(ctx);
+    } else if (s.type === 'reach') {
+      const p = ctx.landmarks[s.place];
+      const d = Math.hypot(ctx.pos.x - p.x, ctx.pos.z - p.z);
+      if (d <= s.radius && (!s.inCar || ctx.inCar)) this.advance(ctx);
+    } else if (s.type === 'loseWanted') {
+      if (ctx.wanted === 0) this.advance(ctx);
+    } else if (s.type === 'channel') {
+      const p = ctx.landmarks[s.place];
+      const d = Math.hypot(ctx.pos.x - p.x, ctx.pos.z - p.z);
+      if (d <= s.radius && ctx.holdingE) {
+        this.channelProgress += dt;
+        if (this.channelProgress >= s.seconds) {
+          this.channelProgress = 0;
+          ctx.say('Vault cracked! The cash is yours — RUN!');
+          if (m.wantedAfterChannel) ctx.setWanted(m.wantedAfterChannel);
+          this.advance(ctx);
+        }
+      } else {
+        this.channelProgress = Math.max(0, this.channelProgress - dt * 0.5);
       }
     }
-    if (type === 'shot-hit' && step.kind === 'kill' && data && data.dead) {
-      // Count any kill toward the total if kind2 is not specific.
-      if (!step.kind2) this.killCount++;
-    }
-  }
-
-  abort() {
-    this.active = null;
-    this.dialogue = null;
-    this.offered = null;
   }
 }

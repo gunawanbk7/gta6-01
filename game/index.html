@@ -3,18 +3,141 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Solmar Bay — Open-World Crime</title>
+<title>Solmar Bay — an open-world crime game</title>
 <link rel="icon" href="data:,">
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0e13; }
-  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
-  /* Read aloud, never shown: the status line screen readers announce. */
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0e1420;
+    font-family: Arial, Helvetica, sans-serif; color: #fff; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  .panel { background: rgba(10, 16, 24, 0.62); border-radius: 8px; padding: 8px 12px; }
+  #hud-top-left { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 6px; }
+  #hud-cash { font-size: 26px; font-weight: bold; color: #7dff9b; text-shadow: 0 2px 4px #000; }
+  #hud-health { width: 190px; }
+  #hud-health-bar { height: 10px; background: rgba(255,255,255,0.25); border-radius: 5px; overflow: hidden; }
+  #hud-health-fill { height: 100%; width: 100%; background: #39d353; }
+  #hud-health-text { font-size: 12px; }
+  #hud-stars { font-size: 26px; letter-spacing: 3px; color: #888; text-shadow: 0 2px 4px #000; }
+  #hud-top-right { position: absolute; top: 12px; right: 12px; }
+  #minimap { width: 190px; height: 190px; border: 2px solid rgba(255,255,255,0.55);
+    border-radius: 8px; background: #20262b; display: block; }
+  #hud-speed { position: absolute; right: 14px; bottom: 14px; font-size: 30px; font-weight: bold;
+    text-shadow: 0 2px 4px #000; text-align: right; }
+  #hud-ammo { font-size: 15px; color: #ffd76a; }
+  #hud-objective { position: absolute; left: 12px; bottom: 14px; max-width: 430px; font-size: 15px;
+    line-height: 1.4; text-shadow: 0 1px 3px #000; }
+  #hud-feed { position: absolute; left: 12px; top: 150px; font-size: 14px; line-height: 1.6;
+    text-shadow: 0 1px 3px #000; color: #ffe9a8; }
+  #hud-interact { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%);
+    font-size: 17px; font-weight: bold; display: none; text-shadow: 0 2px 4px #000; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px;
+    transform: translate(-50%, -50%); display: none; }
+  #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #fff;
+    box-shadow: 0 0 3px #000; }
+  #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
+  #crosshair::after { left: 0; top: 8px; width: 18px; height: 2px; }
+  #dialogue { position: absolute; left: 50%; bottom: 110px; transform: translateX(-50%);
+    width: min(620px, 90vw); background: rgba(10, 16, 24, 0.88); border: 1px solid #ffd76a;
+    border-radius: 10px; padding: 14px 18px; display: none; }
+  #dialogue-title { color: #ffd76a; font-weight: bold; letter-spacing: 1px; margin-bottom: 6px; }
+  #dialogue-text { font-size: 16px; line-height: 1.5; }
+  #dialogue-hint { margin-top: 8px; font-size: 12px; color: #9fb8c8; }
+  .menu { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: linear-gradient(160deg, rgba(8, 30, 50, 0.88), rgba(60, 20, 10, 0.82));
+    z-index: 10; pointer-events: auto; }
+  .menu-card { max-width: 640px; width: 92vw; text-align: center; padding: 28px 30px;
+    background: rgba(8, 14, 22, 0.82); border: 1px solid rgba(255, 215, 106, 0.5); border-radius: 14px; }
+  .menu-card h1 { margin: 0 0 4px; font-size: 46px; letter-spacing: 3px; color: #ffd76a;
+    text-shadow: 0 3px 0 #7a2a12, 0 6px 18px #000; }
+  .menu-card h2 { margin: 0 0 14px; font-size: 15px; font-weight: normal; color: #9fd8ff; letter-spacing: 2px; }
+  .menu-card p { font-size: 15px; line-height: 1.6; color: #e8e8e8; text-align: left; }
+  .controls { text-align: left; font-size: 14px; line-height: 1.9; color: #cfe0ea;
+    columns: 2; column-gap: 28px; margin: 12px 0 18px; }
+  .controls b { color: #ffd76a; }
+  button { pointer-events: auto; cursor: pointer; font-size: 17px; font-weight: bold;
+    color: #10202e; background: #ffd76a; border: none; border-radius: 8px;
+    padding: 12px 26px; margin: 4px; }
+  button:hover { background: #ffe9a8; }
+  button.secondary { background: #9fd8ff; }
   #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 </style>
 </head>
 <body>
-<canvas id="game" aria-label="Solmar Bay: an open-world crime game. Drive around the city, take jobs from Iris, avoid the police."></canvas>
+<canvas id="game" aria-label="Solmar Bay: an open-world crime game. Steal cars, outrun the police, run missions across the city."></canvas>
+<div id="hud">
+  <div id="hud-top-left">
+    <div id="hud-cash" class="panel">$120</div>
+    <div id="hud-health" class="panel">
+      <div id="hud-health-bar"><div id="hud-health-fill"></div></div>
+      <span>Health </span><span id="hud-health-text">100</span>
+    </div>
+    <div id="hud-stars">☆☆☆☆☆</div>
+  </div>
+  <div id="hud-top-right"><canvas id="minimap" width="190" height="190"></canvas></div>
+  <div id="hud-feed"></div>
+  <div id="hud-objective" class="panel"></div>
+  <div id="hud-interact" class="panel"></div>
+  <div id="hud-speed">0 km/h<br><span id="hud-ammo">🔫 12 / 48</span></div>
+  <div id="crosshair"></div>
+  <div id="dialogue">
+    <div id="dialogue-title"></div>
+    <div id="dialogue-text"></div>
+    <div id="dialogue-hint"></div>
+  </div>
+</div>
+
+<div id="menu-start" class="menu">
+  <div class="menu-card">
+    <h1>SOLMAR BAY</h1>
+    <h2>AN OPEN-WORLD CRIME STORY</h2>
+    <p>Rico &ldquo;Rook&rdquo; Marlin walks out of the yard with $120 and a grudge.
+    Solmar Bay is sun, surf and easy money — if you can stay ahead of the Bay PD.
+    Steal cars, run jobs for Marco, crack the Solmar Bank vault, and own this town.</p>
+    <div class="controls">
+      <div><b>W A S D</b> — walk / drive</div>
+      <div><b>Mouse drag</b> — look around</div>
+      <div><b>E</b> — steal / exit car, advance dialogue</div>
+      <div><b>Shift</b> — run</div>
+      <div><b>Click</b> — fire pistol</div>
+      <div><b>F</b> — punch</div>
+      <div><b>R</b> — reload &nbsp; <b>Space</b> — handbrake</div>
+      <div><b>P</b> — pause &nbsp; <b>M</b> — mute</div>
+    </div>
+    <button id="btn-start">▶ Start new game</button>
+    <button id="btn-continue" class="secondary">Continue</button>
+    <p style="text-align:center; font-size:12px; color:#9fb8c8;">Progress saves automatically. An original game — no Rockstar content.</p>
+  </div>
+</div>
+
+<div id="menu-pause" class="menu">
+  <div class="menu-card">
+    <h1>PAUSED</h1>
+    <p style="text-align:center;">Solmar Bay waits for no one. Except now.</p>
+    <button id="btn-resume">Resume</button>
+    <button id="btn-quit" class="secondary">Save &amp; quit to menu</button>
+  </div>
+</div>
+
+<div id="menu-busted" class="menu">
+  <div class="menu-card">
+    <h1>BUSTED!</h1>
+    <p id="busted-text" style="text-align:center;">The Bay PD caught you.</p>
+    <button id="btn-busted-ok">Back on the streets</button>
+  </div>
+</div>
+
+<div id="menu-complete" class="menu">
+  <div class="menu-card">
+    <h1>SOLMAR BAY IS YOURS</h1>
+    <p id="complete-stats" style="text-align:center;"></p>
+    <p style="text-align:center;">Every job done. The sun never sets on your town, Rook.</p>
+    <button id="btn-complete-ok">Keep playing (free roam)</button>
+    <button id="btn-restart" class="secondary">New game</button>
+  </div>
+</div>
+
 <p id="status" role="status" aria-live="polite"></p>
+<script src="./vendor/three.min.js"></script>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
