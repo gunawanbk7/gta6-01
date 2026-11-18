@@ -1,32 +1,22 @@
-// save.js — progress persists in localStorage so a session survives a reload:
-// money, finished jobs, the pistol unlock and best stats.
-const KEY = 'solmar-bay-save-v1';
-
-export function defaultSave() {
-  return {
-    money: 250,
-    missionsDone: [],
-    hasPistol: false,
-    cashFound: [],
-    faresDone: 0,
-    bestMoney: 250,
-    muted: false,
+// Save / load: localStorage progress (cash, health, mission index, position).
+(function () {
+  const KEY = window.SB.CONFIG.saveKey;
+  window.SB.Save = {
+    save(state) {
+      try {
+        const data = { cash: state.cash, health: state.health, missionIndex: state.missionIndex,
+          completed: state.completedMissions, pos: [state.player.pos.x, state.player.pos.z],
+          wanted: state.wanted, time: Date.now() };
+        localStorage.setItem(KEY, JSON.stringify(data));
+        state.lastSave = new Date().toLocaleTimeString();
+        return true;
+      } catch (e) { return false; }
+    },
+    load() {
+      try { const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : null; }
+      catch (e) { return null; }
+    },
+    clear() { try { localStorage.removeItem(KEY); } catch (e) {} },
+    has() { try { return !!localStorage.getItem(KEY); } catch (e) { return false; } },
   };
-}
-
-export function loadSave() {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return defaultSave();
-    const parsed = JSON.parse(raw);
-    return { ...defaultSave(), ...parsed };
-  } catch (e) {
-    return defaultSave();
-  }
-}
-
-export function writeSave(save) {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(save));
-  } catch (e) { /* storage unavailable: play on without saving */ }
-}
+})();

@@ -3,18 +3,86 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Solmar Bay — Open-World Crime</title>
-<link rel="icon" href="data:,">
+<title>Solmar Bay — Open-World Crime Game</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0e13; }
-  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
-  /* Read aloud, never shown: the status line screen readers announce. */
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0e1a24; font-family: 'Segoe UI', Arial, sans-serif; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #hud { display: none; position: fixed; inset: 0; pointer-events: none; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.8); z-index: 5; }
+  .panel { background: rgba(8, 18, 28, .72); border: 1px solid rgba(255,255,255,.18); border-radius: 10px; padding: 8px 12px; }
+  #hud-top { position: absolute; top: 12px; left: 12px; display: flex; gap: 10px; align-items: flex-start; }
+  #hud-cash { font-size: 26px; font-weight: 800; color: #7dff8a; }
+  #hud-wanted { font-size: 22px; letter-spacing: 2px; }
+  #hud-health-wrap { width: 170px; }
+  #hud-health-bar { height: 10px; background: #3aa86a; border-radius: 5px; width: 100%; transition: width .2s; }
+  #hud-speed { position: absolute; right: 14px; bottom: 14px; font-size: 26px; font-weight: 800; }
+  #hud-objective { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); max-width: 560px; font-size: 15px; font-weight: 600; text-align: center; color: #ffd23a; }
+  #hud-feed { position: absolute; left: 12px; bottom: 14px; max-width: 420px; font-size: 13.5px; line-height: 1.5; }
+  #hud-feed div { background: rgba(8,18,28,.6); border-radius: 6px; padding: 3px 8px; margin-top: 4px; }
+  #hud-dialogue { position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%); max-width: 620px; font-size: 16px; font-style: italic; text-align: center; background: rgba(8,18,28,.78); border-radius: 10px; padding: 10px 16px; display: none; }
+  #hud-save, #hud-time { position: absolute; right: 14px; top: 12px; font-size: 12.5px; text-align: right; opacity: .9; }
+  #hud-time { top: 34px; }
+  #minimap { position: absolute; right: 14px; bottom: 64px; width: 190px; height: 190px; border: 2px solid rgba(255,255,255,.5); border-radius: 8px; background: #1d2b1a; }
+  #minimap-label { position: absolute; right: 14px; bottom: 258px; font-size: 11px; letter-spacing: 2px; opacity: .85; }
+  #start-screen { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: linear-gradient(180deg, rgba(6,20,32,.25) 0%, rgba(6,20,32,.78) 78%); color: #fff; }
+  #start-card { text-align: center; max-width: 640px; padding: 28px 34px; background: rgba(8, 22, 34, .82); border: 1px solid rgba(255,210,58,.5); border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+  #start-card h1 { margin: 0; font-size: 56px; letter-spacing: 4px; color: #ffd23a; text-shadow: 0 3px 0 #d84a3a, 0 6px 24px rgba(0,0,0,.7); }
+  #start-card h2 { margin: 4px 0 12px; font-size: 17px; font-weight: 400; color: #bfe3f2; letter-spacing: 2px; }
+  #start-card p { font-size: 15px; line-height: 1.6; color: #e8f2f8; }
+  #start-card .controls { font-size: 13.5px; color: #ffd98a; line-height: 1.9; background: rgba(255,255,255,.06); border-radius: 10px; padding: 10px; margin: 14px 0; }
+  #start-card button { pointer-events: auto; font-size: 19px; font-weight: 700; padding: 12px 30px; margin: 6px; border: none; border-radius: 10px; cursor: pointer; background: #ffd23a; color: #14202a; }
+  #start-card button.secondary { background: #2aa5cf; color: #fff; }
+  #start-card button:hover { filter: brightness(1.1); }
   #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 </style>
 </head>
 <body>
-<canvas id="game" aria-label="Solmar Bay: an open-world crime game. Drive around the city, take jobs from Iris, avoid the police."></canvas>
+<canvas id="game" aria-label="Solmar Bay: open-world crime game"></canvas>
 <p id="status" role="status" aria-live="polite"></p>
-<script type="module" src="./src/main.js"></script>
+<div id="hud">
+  <div id="hud-top">
+    <div class="panel"><div id="hud-cash">$50</div><div id="hud-wanted">☆☆☆☆☆</div></div>
+    <div class="panel" id="hud-health-wrap"><div>HEALTH <span id="hud-health">100%</span></div><div style="background:#222;border-radius:5px;margin-top:4px"><div id="hud-health-bar"></div></div></div>
+  </div>
+  <div id="hud-objective" class="panel">Mission 1 — First Wheels</div>
+  <div id="hud-save"></div><div id="hud-time"></div>
+  <div id="minimap-label">SOLMAR BAY</div>
+  <canvas id="minimap" width="190" height="190"></canvas>
+  <div id="hud-dialogue"></div>
+  <div id="hud-feed"></div>
+  <div id="hud-speed" class="panel">0 km/h</div>
+</div>
+<div id="start-screen">
+  <div id="start-card">
+    <h1>SOLMAR BAY</h1>
+    <h2>AN OPEN-WORLD CRIME STORY &nbsp;•&nbsp; SUN, SEA &amp; TROUBLE</h2>
+    <p>Rico Vega is back in Solmar Bay after three years away — broke, angry, and owed.
+    Fixer Mara Solis has work: steal a car, run packages, outdrive the harbour police,
+    and pull one last big job on Sunset Row. The whole city is yours: drive it, walk it,
+    swim the beach at your own risk — and watch the stars.</p>
+    <div class="controls">
+      WASD / Arrows — walk &amp; drive &nbsp;•&nbsp; SHIFT — run<br>
+      E — steal / enter &amp; exit car &nbsp;•&nbsp; F — punch &nbsp;•&nbsp; Click / SPACE — fire pistol<br>
+      Drag mouse — orbit camera &nbsp;•&nbsp; Wheel — zoom &nbsp;•&nbsp; H — help &nbsp;•&nbsp; M — mute<br>
+      Progress autosaves. Four missions, $2,250 in jobs.
+    </div>
+    <button id="btn-start">START THE STORY</button>
+    <button id="btn-continue" class="secondary" style="display:none">CONTINUE SAVED GAME</button>
+    <p style="font-size:12px;opacity:.75">A 100% original game. No real city, person or brand is depicted. Plays fully offline.</p>
+  </div>
+</div>
+<script src="./vendor/three.min.js"></script>
+<script src="./src/config.js"></script>
+<script src="./src/input.js"></script>
+<script src="./src/audio.js"></script>
+<script src="./src/save.js"></script>
+<script src="./src/city.js"></script>
+<script src="./src/vehicles.js"></script>
+<script src="./src/player.js"></script>
+<script src="./src/traffic.js"></script>
+<script src="./src/police.js"></script>
+<script src="./src/combat.js"></script>
+<script src="./src/missions.js"></script>
+<script src="./src/hud.js"></script>
+<script src="./src/main.js"></script>
 </body>
 </html>

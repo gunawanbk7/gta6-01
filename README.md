@@ -4,28 +4,18 @@
 [![rank](https://make.fun/badge/gta6-01/gunawanbk7/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![reward](https://make.fun/badge/gta6-01/gunawanbk7/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
-**Solmar Bay** — an original open-world crime game built for make.fun's "Make GTA 6" bounty. A fictional coastal city you explore on foot and by car: steal cars, outrun the Solmar Bay PD under a five-star wanted system, take six story jobs from the fixer Iris Delgado, fight rival gangs, run taxi fares, and hunt hidden cash. Everything — the city, the characters, the vehicles, the story, the art and the music — is invented for this game.
+Solmar Bay is a complete open-world crime game in the spirit of GTA 6, built 100% original: its own sun-soaked coastal city, characters, vehicles, story, art and synthesized sound — nothing from Rockstar Games or any commercial game. Rico Vega returns to Solmar Bay broke and owed; fixer Mara Solis has four jobs for him, from stealing his first car on Coral Avenue to a $1,000 store heist on Sunset Row, with the harbour police chasing him every step of the way.
+
+Explore on foot and by car, steal cars and drive them, dodge traffic and pedestrians, raise a wanted level and outrun police cruisers, fight with fists and a pistol, and follow a live minimap through a four-mission story chain ($2,250 in jobs). The HUD tracks cash, health, wanted stars, speed, the current objective and a message feed; progress autosaves to localStorage and can be continued from the start screen. It plays fully offline in a desktop browser from static files, with keyboard and mouse, using vendored three.js.
 
 ## Run it
 
 ```sh
-node serve.ts
+python3 -m http.server 8080 --directory game
 ```
 
-Then open http://localhost:8080 in a desktop browser. No build step, no network requests: the game is static files under `game/`, with all sound and music synthesised live in WebAudio.
-
-## Controls
-
-- **WASD** move · **SHIFT** run · **E** enter / exit a car · **SPACE** punch (on foot) / handbrake (driving) · **CLICK** shoot (once you earn the pistol) · **P** pause · **M** mute
-
-## How it plays
-
-- **Open world**: Downtown, Old Town, the Marina beach, the Harbour docks and the Industrial quarter, with live traffic and pedestrians.
-- **Wanted level**: crimes raise your stars; police cruisers chase and ram, officers arrest on foot. Lay low and the heat fades.
-- **Missions**: six jobs with dialogue, objectives, timers and chases — from a first pickup to the Big Score.
-- **Side work**: taxi fares and 12 hidden cash stashes.
-- **Progress saves** in your browser (localStorage) after every job.
+Then open http://localhost:8080 in a desktop browser.
 
 ---
 
-<sub>Entered on [make.fun](https://make.fun/?ref=gunawan-ramadhan&utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>
+<sub>Entered on [make.fun](https://make.fun/?ref=gunawanbk7&utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>
