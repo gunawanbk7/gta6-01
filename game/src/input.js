@@ -1,48 +1,65 @@
-// input.js — keyboard + mouse state, with edge detection for action keys.
+// Keyboard + mouse input for Solmar Bay. WASD/arrows move, mouse drag orbits
+// the camera, click shoots / punches. Tracks pressed edges for one-shot actions.
 export class Input {
   constructor(canvas) {
-    this.keys = new Set();
-    this.pressed = new Set(); // keys pressed since last poll
-    this.mouse = { x: 0, y: 0, down: false, clicked: false };
-    this.canvas = canvas;
+    this.keys = {};
+    this.pressed = {};
+    this.mouseDX = 0;
+    this.mouseDY = 0;
+    this.dragging = false;
+    this.mouseDown = false;
+    this.mouseClicked = false;
+    this.lastX = 0;
+    this.lastY = 0;
+    this.escapeHandler = null; // called synchronously on Esc / P, any state
     window.addEventListener('keydown', (e) => {
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
-      if (!e.repeat) this.pressed.add(e.key.length === 1 ? e.key.toLowerCase() : e.key);
-      this.keys.add(e.key.length === 1 ? e.key.toLowerCase() : e.key);
+      if (e.repeat) return;
+      this.keys[e.code] = true;
+      // Timestamped so a quick tap still lands even at very low frame rates.
+      this.pressed[e.code] = performance.now();
+      if (e.code === 'Escape' || e.code === 'KeyP') this.escapeHandler?.();
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
     });
-    window.addEventListener('keyup', (e) => {
-      this.keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key);
-    });
-    window.addEventListener('blur', () => { this.keys.clear(); });
-    canvas.addEventListener('mousemove', (e) => {
-      const r = canvas.getBoundingClientRect();
-      this.mouse.x = e.clientX - r.left;
-      this.mouse.y = e.clientY - r.top;
-    });
+    window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
+    window.addEventListener('blur', () => { this.keys = {}; });
     canvas.addEventListener('mousedown', (e) => {
-      this.mouse.down = true;
-      this.mouse.clicked = true;
-      const r = canvas.getBoundingClientRect();
-      this.mouse.x = e.clientX - r.left;
-      this.mouse.y = e.clientY - r.top;
+      this.dragging = true; this.mouseDown = true; this.mouseClicked = true;
+      this.lastX = e.clientX; this.lastY = e.clientY;
     });
-    window.addEventListener('mouseup', () => { this.mouse.down = false; });
+    window.addEventListener('mouseup', () => { this.dragging = false; this.mouseDown = false; });
+    window.addEventListener('mousemove', (e) => {
+      if (!this.dragging) return;
+      this.mouseDX += e.clientX - this.lastX;
+      this.mouseDY += e.clientY - this.lastY;
+      this.lastX = e.clientX; this.lastY = e.clientY;
+    });
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   }
-
-  down(...names) { return names.some((n) => this.keys.has(n)); }
-  hit(...names) { return names.some((n) => this.pressed.has(n)); }
-  // Movement vector from WASD / arrows, screen-relative (camera never rotates).
+  down(code) { return !!this.keys[code]; }
+  // One-shot: returns true once per physical press, then consumes it.
+  hit(code) {
+    const t = this.pressed[code];
+    if (t === undefined || performance.now() - t >= 1000) return false;
+    delete this.pressed[code];
+    return true;
+  }
+  axis(neg, pos) { return (this.keys[pos] ? 1 : 0) - (this.keys[neg] ? 1 : 0); }
+  // Forward / strafe in camera space, from WASD or arrows.
   moveVector() {
-    let x = 0, y = 0;
-    if (this.down('a', 'ArrowLeft')) x -= 1;
-    if (this.down('d', 'ArrowRight')) x += 1;
-    if (this.down('w', 'ArrowUp')) y -= 1;
-    if (this.down('s', 'ArrowDown')) y += 1;
-    if (x !== 0 && y !== 0) { x *= 0.7071; y *= 0.7071; }
-    return { x, y };
+    const f = this.axis('KeyS', 'KeyW') + this.axis('ArrowDown', 'ArrowUp');
+    const s = this.axis('KeyA', 'KeyD') + this.axis('ArrowLeft', 'ArrowRight');
+    return { f: Math.max(-1, Math.min(1, f)), s: Math.max(-1, Math.min(1, s)) };
+  }
+  consumeMouse() {
+    const dx = this.mouseDX, dy = this.mouseDY;
+    this.mouseDX = 0; this.mouseDY = 0;
+    return { dx, dy };
   }
   endFrame() {
-    this.pressed.clear();
-    this.mouse.clicked = false;
+    const now = performance.now();
+    for (const code of Object.keys(this.pressed)) {
+      if (now - this.pressed[code] >= 1000) delete this.pressed[code];
+    }
+    this.mouseClicked = false;
   }
 }

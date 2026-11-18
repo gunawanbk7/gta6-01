@@ -1,4 +1,20 @@
-// util.js — small helpers shared by every Solmar Bay module. No dependencies.
+// Shared math and random helpers for Solmar Bay. No dependencies.
+export function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+export function lerp(a, b, t) { return a + (b - a) * t; }
+export function damp(a, b, lambda, dt) { return lerp(a, b, 1 - Math.exp(-lambda * dt)); }
+export function angleLerp(a, b, t) {
+  let d = b - a;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return a + d * t;
+}
+export function angleDiff(a, b) {
+  let d = b - a;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
+// Deterministic seeded random (mulberry32) so the city looks the same every run.
 export function mulberry32(seed) {
   let a = seed >>> 0;
   return function () {
@@ -8,30 +24,28 @@ export function mulberry32(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-
-export function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
-export function lerp(a, b, t) { return a + (b - a) * t; }
-export function dist(ax, ay, bx, by) { const dx = bx - ax, dy = by - ay; return Math.sqrt(dx * dx + dy * dy); }
-export function angleTo(ax, ay, bx, by) { return Math.atan2(by - ay, bx - ax); }
-export function angleDiff(a, b) {
-  let d = b - a;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  return d;
-}
-export function randRange(rng, lo, hi) { return lo + rng() * (hi - lo); }
 export function pick(rng, arr) { return arr[Math.floor(rng() * arr.length)]; }
-export function circleHitsRect(cx, cy, r, rect) {
-  const nx = clamp(cx, rect.x, rect.x + rect.w);
-  const ny = clamp(cy, rect.y, rect.y + rect.h);
-  const dx = cx - nx, dy = cy - ny;
-  return dx * dx + dy * dy < r * r;
+export function randRange(rng, a, b) { return a + rng() * (b - a); }
+// Circle vs axis-aligned box (x/z) push-out. Returns corrected position.
+export function resolveCircleAABB(px, pz, radius, box) {
+  const cx = clamp(px, box.minX, box.maxX);
+  const cz = clamp(pz, box.minZ, box.maxZ);
+  const dx = px - cx, dz = pz - cz;
+  const d2 = dx * dx + dz * dz;
+  if (d2 >= radius * radius) return null;
+  if (d2 > 0.000001) {
+    const d = Math.sqrt(d2);
+    return { x: cx + (dx / d) * radius, z: cz + (dz / d) * radius };
+  }
+  // Centre inside the box: push out along the smallest penetration axis.
+  const pl = px - box.minX, pr = box.maxX - px, pt = pz - box.minZ, pb = box.maxZ - pz;
+  const m = Math.min(pl, pr, pt, pb);
+  if (m === pl) return { x: box.minX - radius, z: pz };
+  if (m === pr) return { x: box.maxX + radius, z: pz };
+  if (m === pt) return { x: px, z: box.minZ - radius };
+  return { x: px, z: box.maxZ + radius };
 }
-export function rectsOverlap(a, b) {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-}
-export function fmtMoney(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
-export function fmtTime(sec) {
-  const s = Math.max(0, Math.ceil(sec));
-  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+export function dist2D(ax, az, bx, bz) {
+  const dx = ax - bx, dz = az - bz;
+  return Math.sqrt(dx * dx + dz * dz);
 }
